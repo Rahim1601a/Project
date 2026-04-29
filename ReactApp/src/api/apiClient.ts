@@ -1,0 +1,48 @@
+import axios from 'axios';
+
+interface FetchOptions extends RequestInit {
+  params?: Record<string, string | number | boolean>;
+}
+
+const axiosInstance = axios.create({
+  baseURL: 'http://localhost:5199',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+axiosInstance.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('accessToken');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+export const apiClient = async <T>(
+  url: string,
+  options?: FetchOptions
+): Promise<T> => {
+  const { params, method, body, headers } = options || {};
+
+  try {
+    const response = await axiosInstance.request<T>({
+      url,
+      method: (method as any) || 'GET',
+      params,
+      data: body && typeof body === 'string' ? JSON.parse(body) : body,
+      headers: headers as any,
+    });
+
+    return response.data;
+  } catch (error: any) {
+    if (error.response) {
+      const errorData = error.response.data;
+      throw new Error(errorData?.message || 'API Error');
+    }
+    throw error;
+  }
+};
