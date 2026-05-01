@@ -5,7 +5,7 @@ interface FetchOptions extends RequestInit {
 }
 
 const axiosInstance = axios.create({
-  baseURL: 'http://localhost:5199',
+  baseURL: 'http://localhost:5000',
   headers: {
     'Content-Type': 'application/json',
   },

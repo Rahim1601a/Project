@@ -1,4 +1,4 @@
-namespace DotNetExampleApi.Models;
+namespace DotNetExample.Application.Models;
 
 public class ResponseModel<T>
 {

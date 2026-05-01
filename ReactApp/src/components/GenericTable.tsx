@@ -13,13 +13,15 @@ interface GenericTableProps<T extends Record<string, any>> {
   url: string;
   columns: MRT_ColumnDef<T>[];
   pageSize?: number;
+  tableOptions?: Partial<import('material-react-table').MRT_TableOptions<T>>;
 }
 
 export function GenericTable<T extends Record<string, any>>({
   queryKey,
   url,
   columns,
-  pageSize = 3,
+  pageSize = 10,
+  tableOptions,
 }: GenericTableProps<T>) {
   const [pagination, setPagination] = useState<MRT_PaginationState>({
     pageIndex: 0,
@@ -36,11 +38,16 @@ export function GenericTable<T extends Record<string, any>>({
     pagination.pageSize
   );
 
-  // Reset cursors if page size changes
+  // Reset cursors and pagination if page size prop changes
   useEffect(() => {
     setCursors({ 0: null });
-    setPagination((prev) => ({ ...prev, pageIndex: 0 }));
-  }, [pagination.pageSize]);
+    setPagination((prev) => ({ 
+      ...prev, 
+      pageIndex: 0, 
+      pageSize 
+    }));
+  }, [pageSize]);
+
 
   // Store next cursor for the next page
   useEffect(() => {
@@ -64,10 +71,12 @@ export function GenericTable<T extends Record<string, any>>({
     data: data?.items || [],
     manualPagination: true,
     rowCount,
+    ...tableOptions,
     state: {
       pagination,
       isLoading,
       showAlertBanner: !!error,
+      ...tableOptions?.state,
     },
     onPaginationChange: setPagination,
     muiToolbarAlertBannerProps: error

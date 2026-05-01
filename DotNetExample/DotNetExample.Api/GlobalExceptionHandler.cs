@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
-using DotNetExampleApi.Models;
+using DotNetExample.Application.Models;
 using System.Text.Json;
 
 namespace DotNetExampleApi;

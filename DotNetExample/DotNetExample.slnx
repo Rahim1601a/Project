@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="DotNetExample.Api/DotNetExample.Api.csproj" />
+  <Project Path="DotNetExample.Application/DotNetExample.Application.csproj" />
+  <Project Path="DotNetExample.Domain/DotNetExample.Domain.csproj" />
+  <Project Path="DotNetExample.Infrastructure/DotNetExample.Infrastructure.csproj" />
+</Solution>

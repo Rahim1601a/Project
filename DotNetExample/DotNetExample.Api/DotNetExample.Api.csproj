@@ -9,6 +9,13 @@
   <ItemGroup>
     <PackageReference Include="MediatR" Version="14.1.0" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.0-rc.2.25502.107" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.7" />
   </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DotNetExample.Application\DotNetExample.Application.csproj" />
+    <ProjectReference Include="..\DotNetExample.Infrastructure\DotNetExample.Infrastructure.csproj" />
+  </ItemGroup>
+
 
 </Project>

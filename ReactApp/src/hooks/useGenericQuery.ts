@@ -7,12 +7,9 @@ import {
 } from '@tanstack/react-query';
 import { apiClient } from '../api/apiClient';
 
-export interface ApiResponse<T> {
-  data: T;
-  success: boolean;
-  message: string;
-  statusCode: number;
-}
+import type { ApiResponse, CursorPagedResponse } from '../types/api';
+
+
 
 /**
  * A generic hook for fetching data (GET requests)
@@ -78,11 +75,8 @@ export function useGenericMutation<
     ...options,
   });
 }
-export interface CursorPagedResponse<T> {
-  items: T[];
-  nextCursor: number | null;
-  hasMore: boolean;
-}
+
+
 
 export function useGenericCursorQuery<
   T = unknown,
