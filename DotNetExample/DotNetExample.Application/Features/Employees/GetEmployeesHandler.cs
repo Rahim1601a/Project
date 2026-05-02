@@ -16,11 +16,11 @@ public class GetEmployeesHandler : IRequestHandler<GetEmployeesQuery, ResponseMo
 
     public async Task<ResponseModel<CursorPagedResponseModel<Employee>>> Handle(GetEmployeesQuery request, CancellationToken cancellationToken)
     {
-        var items = await _repository.GetEmployeesAsync(request.Cursor, request.PageSize);
+        var items = await _repository.GetEmployeesAsync(request.Cursor, request.PageSize, request.CountryId);
         var itemList = items.ToList();
         
         var nextCursor = itemList.LastOrDefault()?.Id;
-        var hasMore = nextCursor.HasValue && await _repository.HasMoreEmployeesAsync(nextCursor.Value);
+        var hasMore = nextCursor.HasValue && await _repository.HasMoreEmployeesAsync(nextCursor.Value, request.CountryId);
 
         var pagedData = CursorPagedResponseModel<Employee>.Create(itemList, nextCursor, hasMore);
         return ResponseModel<CursorPagedResponseModel<Employee>>.Ok(pagedData, "Employee list retrieved successfully");

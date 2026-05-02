@@ -11,6 +11,7 @@ export type Country = {
   id: number;
   name: string;
   code: string;
+  companyId?: number;
 };
 
 export type Employee = {
@@ -25,14 +26,17 @@ export type Employee = {
   countries: Country[];
 };
 
-
-
 export function useCreateEmployee() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (employee: Omit<Employee, 'id'>) => {
       const payload = {
-        ...employee,
+        firstName: employee.firstName,
+        lastName: employee.lastName,
+        position: employee.position,
+        department: employee.department,
+        salary: employee.salary,
+        companyId: employee.companyId,
         countryIds: employee.countries?.map(c => c.id) || []
       };
       const res = await apiClient<ApiResponse<Employee>>('/employees', {
@@ -53,7 +57,13 @@ export function useUpdateEmployee() {
   return useMutation({
     mutationFn: async (employee: Employee) => {
       const payload = {
-        ...employee,
+        id: employee.id,
+        firstName: employee.firstName,
+        lastName: employee.lastName,
+        position: employee.position,
+        department: employee.department,
+        salary: employee.salary,
+        companyId: employee.companyId,
         countryIds: employee.countries?.map(c => c.id) || []
       };
       const res = await apiClient<ApiResponse<boolean>>(`/employees/${employee.id}`, {
@@ -68,7 +78,6 @@ export function useUpdateEmployee() {
     },
   });
 }
-
 
 export function useDeleteEmployee() {
   const queryClient = useQueryClient();

@@ -1,10 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Autocomplete, 
   CircularProgress, 
   TextField, 
 } from '@mui/material';
-import { useInfiniteQuery, type InfiniteData } from '@tanstack/react-query';
+import { useInfiniteQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import { apiClient } from '../api/apiClient';
 import type { ApiResponse, CursorPagedResponse } from '../types/api';
 
@@ -19,6 +19,12 @@ interface AutocompleteCursorDropdownProps<T> {
   error?: boolean;
   helperText?: string;
   pageSize?: number;
+  /** Enable cascading mode — dropdown depends on a parent selection */
+  isCascading?: boolean;
+  /** The parent's selected ID — required when isCascading is true */
+  parentId?: number | null;
+  /** The query param name to send for parent filtering (e.g., 'companyId') */
+  parentFilterKey?: string;
 }
 
 export function AutocompleteCursorDropdown<T extends { id: number }>({
@@ -32,8 +38,37 @@ export function AutocompleteCursorDropdown<T extends { id: number }>({
   error = false,
   helperText = '',
   pageSize = 10,
+  isCascading = false,
+  parentId = null,
+  parentFilterKey = '',
 }: AutocompleteCursorDropdownProps<T>) {
   const [open, setOpen] = useState(false);
+  const queryClient = useQueryClient();
+
+  // Build the effective query key including parent filter for cascading
+  const effectiveQueryKey = isCascading
+    ? [...queryKey, parentFilterKey, parentId, pageSize]
+    : [...queryKey, pageSize];
+
+  // When parent changes in cascading mode, reset selection and clear cache
+  useEffect(() => {
+    if (isCascading) {
+      // Reset the value when parent changes
+      if (isMulti) {
+        onChange([] as any);
+      } else {
+        onChange(null);
+      }
+      // Invalidate previous queries for this dropdown
+      queryClient.removeQueries({ queryKey });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [parentId]);
+
+  // Determine if the query should be enabled
+  const isEnabled = isCascading
+    ? open && parentId != null && parentId !== undefined
+    : open;
 
   const {
     data,
@@ -42,11 +77,15 @@ export function AutocompleteCursorDropdown<T extends { id: number }>({
     isFetchingNextPage,
     isLoading,
   } = useInfiniteQuery<CursorPagedResponse<T>, Error, InfiniteData<CursorPagedResponse<T>, number | null>, any[], number | null>({
-    queryKey: [...queryKey, pageSize],
+    queryKey: effectiveQueryKey,
     queryFn: async ({ pageParam = null }) => {
       const params: Record<string, string | number | boolean> = { pageSize };
       if (pageParam !== null) {
         params.cursor = pageParam;
+      }
+      // Add parent filter param for cascading
+      if (isCascading && parentId != null && parentFilterKey) {
+        params[parentFilterKey] = parentId;
       }
       const response = await apiClient<ApiResponse<CursorPagedResponse<T>>>(url, { params });
       if (!response.success) throw new Error(response.message);
@@ -54,7 +93,7 @@ export function AutocompleteCursorDropdown<T extends { id: number }>({
     },
     initialPageParam: null,
     getNextPageParam: (lastPage) => lastPage.hasMore ? lastPage.nextCursor : undefined,
-    enabled: open,
+    enabled: isEnabled,
   });
 
   const options = useMemo(() => {
@@ -72,14 +111,19 @@ export function AutocompleteCursorDropdown<T extends { id: number }>({
     }
   };
 
+  // Determine if the dropdown should be disabled
+  const isDisabled = isCascading && (parentId == null || parentId === undefined);
+  const placeholderText = isDisabled ? `Select ${parentFilterKey?.replace('Id', '') || 'parent'} first` : '';
+
   return (
     <Autocomplete
       open={open}
-      onOpen={() => setOpen(true)}
+      onOpen={() => { if (!isDisabled) setOpen(true); }}
       onClose={() => setOpen(false)}
       multiple={isMulti as any}
       options={options}
       loading={isLoading}
+      disabled={isDisabled}
       value={value as any}
       onChange={(_: any, newValue: any) => onChange(newValue)}
       getOptionLabel={getOptionLabel as any}
@@ -99,7 +143,7 @@ export function AutocompleteCursorDropdown<T extends { id: number }>({
           label={label}
           variant="outlined"
           error={error}
-          helperText={helperText}
+          helperText={helperText || placeholderText}
           slotProps={{
             inputLabel: params.slotProps.inputLabel,
             input: {

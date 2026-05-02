@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useForm, Controller } from 'react-hook-form';
+import { useForm, Controller, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { 
@@ -23,7 +23,6 @@ const employeeSchema = z.object({
   company: z.custom<Company>().nullable(),
   countries: z.array(z.custom<Country>()).min(1, 'At least one country is required'),
 });
-
 
 type EmployeeFormData = z.infer<typeof employeeSchema>;
 
@@ -61,6 +60,9 @@ export function EmployeeForm({
       countries: [],
     },
   });
+
+  // Watch the company field for cascading
+  const selectedCompany = useWatch({ control, name: 'company' });
 
   // Reset form when initialData changes or dialog closes/opens
   useEffect(() => {
@@ -169,7 +171,7 @@ export function EmployeeForm({
                 )}
               />
             </Box>
-
+            {/* Company — independent dropdown (no cascading) */}
             <Box sx={{ gridColumn: 'span 2' }}>
               <Controller
                 name="company"
@@ -187,13 +189,17 @@ export function EmployeeForm({
                 )}
               />
             </Box>
+            {/* Countries — cascading dropdown: depends on Company selection */}
             <Box sx={{ gridColumn: 'span 2' }}>
               <Controller
                 name="countries"
                 control={control}
                 render={({ field }) => (
                   <AutocompleteCursorDropdown<Country>
-                    {...field}
+                    value={field.value}
+                    onChange={(val) => {
+                      field.onChange(val);
+                    }}
                     label="Countries"
                     url="/countries"
                     queryKey={['countries']}
@@ -201,6 +207,9 @@ export function EmployeeForm({
                     getOptionLabel={(option) => option.name}
                     error={!!errors.countries}
                     helperText={errors.countries?.message}
+                    isCascading={true}
+                    parentId={selectedCompany?.id ?? null}
+                    parentFilterKey="companyId"
                   />
                 )}
               />
@@ -217,5 +226,3 @@ export function EmployeeForm({
     </Dialog>
   );
 }
-
-

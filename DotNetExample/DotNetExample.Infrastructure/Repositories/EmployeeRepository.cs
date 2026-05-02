@@ -32,15 +32,22 @@ public class EmployeeRepository : IEmployeeRepository
 
         if (!_context.Countries.Any())
         {
+            var google = _context.Companies.First(c => c.Name == "Google");
+            var microsoft = _context.Companies.First(c => c.Name == "Microsoft");
+            var apple = _context.Companies.First(c => c.Name == "Apple");
+            var meta = _context.Companies.First(c => c.Name == "Meta");
+            var amazon = _context.Companies.First(c => c.Name == "Amazon");
+            var netflix = _context.Companies.First(c => c.Name == "Netflix");
+
             _context.Countries.AddRange(
-                new Country { Name = "United States", Code = "US" },
-                new Country { Name = "United Kingdom", Code = "GB" },
-                new Country { Name = "Canada", Code = "CA" },
-                new Country { Name = "Germany", Code = "DE" },
-                new Country { Name = "France", Code = "FR" },
-                new Country { Name = "Japan", Code = "JP" },
-                new Country { Name = "Australia", Code = "AU" },
-                new Country { Name = "India", Code = "IN" }
+                new Country { Name = "United States", Code = "US", CompanyId = google.Id },
+                new Country { Name = "United Kingdom", Code = "GB", CompanyId = google.Id },
+                new Country { Name = "Canada", Code = "CA", CompanyId = microsoft.Id },
+                new Country { Name = "Germany", Code = "DE", CompanyId = microsoft.Id },
+                new Country { Name = "France", Code = "FR", CompanyId = apple.Id },
+                new Country { Name = "Japan", Code = "JP", CompanyId = apple.Id },
+                new Country { Name = "Australia", Code = "AU", CompanyId = meta.Id },
+                new Country { Name = "India", Code = "IN", CompanyId = amazon.Id }
             );
             _context.SaveChanges();
         }
@@ -71,12 +78,19 @@ public class EmployeeRepository : IEmployeeRepository
         }
     }
 
-    public async Task<IEnumerable<Employee>> GetEmployeesAsync(int? cursor, int pageSize)
+    // ── Employees ──────────────────────────────────────────────────────
+
+    public async Task<IEnumerable<Employee>> GetEmployeesAsync(int? cursor, int pageSize, int? countryId = null)
     {
         var query = _context.Employees
             .Include(e => e.Company)
             .Include(e => e.Countries)
             .AsQueryable();
+
+        if (countryId.HasValue)
+        {
+            query = query.Where(e => e.Countries.Any(c => c.Id == countryId.Value));
+        }
         
         if (cursor.HasValue)
         {
@@ -116,10 +130,8 @@ public class EmployeeRepository : IEmployeeRepository
 
         if (existingEmployee == null) return;
 
-        // Update basic properties
         _context.Entry(existingEmployee).CurrentValues.SetValues(employee);
         
-        // Update many-to-many countries
         existingEmployee.Countries.Clear();
         if (countryIds != null && countryIds.Any())
         {
@@ -137,18 +149,28 @@ public class EmployeeRepository : IEmployeeRepository
 
     public async Task DeleteEmployeeAsync(int id)
     {
-        var employee = await _context.Employees.FindAsync(id);
+        var employee = await _context.Employees
+            .Include(e => e.Countries)
+            .FirstOrDefaultAsync(e => e.Id == id);
         if (employee != null)
         {
+            employee.Countries.Clear();
             _context.Employees.Remove(employee);
             await _context.SaveChangesAsync();
         }
     }
 
-    public async Task<bool> HasMoreEmployeesAsync(int cursor)
+    public async Task<bool> HasMoreEmployeesAsync(int cursor, int? countryId = null)
     {
-        return await _context.Employees.AnyAsync(e => e.Id > cursor);
+        var query = _context.Employees.AsQueryable();
+        if (countryId.HasValue)
+        {
+            query = query.Where(e => e.Countries.Any(c => c.Id == countryId.Value));
+        }
+        return await query.AnyAsync(e => e.Id > cursor);
     }
+
+    // ── Companies ─────────────────────────────────────────────────────
 
     public async Task<IEnumerable<Company>> GetCompaniesAsync(int? cursor, int pageSize)
     {
@@ -162,16 +184,26 @@ public class EmployeeRepository : IEmployeeRepository
         return await _context.Companies.AnyAsync(c => c.Id > cursor);
     }
 
-    public async Task<IEnumerable<Country>> GetCountriesAsync(int? cursor, int pageSize)
+    // ── Countries ─────────────────────────────────────────────────────
+
+    public async Task<IEnumerable<Country>> GetCountriesAsync(int? cursor, int pageSize, int? companyId = null)
     {
         var query = _context.Countries.AsQueryable();
+        if (companyId.HasValue)
+        {
+            query = query.Where(c => c.CompanyId == companyId.Value);
+        }
         if (cursor.HasValue) query = query.Where(c => c.Id > cursor.Value);
         return await query.OrderBy(c => c.Id).Take(pageSize).ToListAsync();
     }
 
-    public async Task<bool> HasMoreCountriesAsync(int cursor)
+    public async Task<bool> HasMoreCountriesAsync(int cursor, int? companyId = null)
     {
-        return await _context.Countries.AnyAsync(c => c.Id > cursor);
+        var query = _context.Countries.AsQueryable();
+        if (companyId.HasValue)
+        {
+            query = query.Where(c => c.CompanyId == companyId.Value);
+        }
+        return await query.AnyAsync(c => c.Id > cursor);
     }
 }
-

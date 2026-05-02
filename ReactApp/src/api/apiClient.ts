@@ -39,9 +39,9 @@ export const apiClient = async <T>(
 
     return response.data;
   } catch (error: any) {
-    if (error.response) {
-      const errorData = error.response.data;
-      throw new Error(errorData?.message || 'API Error');
+    if (error.response?.data) {
+      // Return the structured error response from the API
+      return error.response.data as T;
     }
     throw error;
   }
