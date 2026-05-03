@@ -185,6 +185,7 @@ export function EmployeeForm({
                     getOptionLabel={(option) => option.name}
                     error={!!errors.company}
                     helperText={errors.company?.message}
+                    isPagination={false}
                   />
                 )}
               />

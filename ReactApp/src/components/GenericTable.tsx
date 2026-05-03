@@ -5,7 +5,7 @@ import {
   type MRT_ColumnDef, 
   type MRT_PaginationState 
 } from 'material-react-table';
-import { useGenericCursorQuery } from '../hooks/useGenericQuery';
+import { useGenericCursorQuery, useGenericQuery } from '../hooks/useGenericQuery';
 import type { QueryKey } from '@tanstack/react-query';
 
 interface GenericTableProps<T extends Record<string, any>> {
@@ -13,6 +13,9 @@ interface GenericTableProps<T extends Record<string, any>> {
   url: string;
   columns: MRT_ColumnDef<T>[];
   pageSize?: number;
+  /** When true (default), uses server-side cursor pagination.
+   *  When false, fetches all data at once and handles pagination client-side. */
+  isPagination?: boolean;
   tableOptions?: Partial<import('material-react-table').MRT_TableOptions<T>>;
 }
 
@@ -21,6 +24,7 @@ export function GenericTable<T extends Record<string, any>>({
   url,
   columns,
   pageSize = 10,
+  isPagination = true,
   tableOptions,
 }: GenericTableProps<T>) {
   const [pagination, setPagination] = useState<MRT_PaginationState>({
@@ -31,45 +35,76 @@ export function GenericTable<T extends Record<string, any>>({
   const [cursors, setCursors] = useState<Record<number, number | null>>({ 0: null });
   const currentCursor = cursors[pagination.pageIndex] ?? null;
 
-  const { data, isLoading, error } = useGenericCursorQuery<T>(
+  // ── Paginated mode (Server-side cursor) ──────────────────────────────────
+  const { 
+    data: pagedData, 
+    isLoading: isPagedLoading, 
+    error: pagedError 
+  } = useGenericCursorQuery<T>(
     queryKey,
     url,
     currentCursor,
-    pagination.pageSize
+    pagination.pageSize,
+    {},
+    { enabled: isPagination }
+  );
+
+  // ── Non-paginated mode (Fetch all at once) ───────────────────────────────
+  const { 
+    data: allData, 
+    isLoading: isAllLoading, 
+    error: allError 
+  } = useGenericQuery<T[]>(
+    queryKey,
+    url,
+    {},
+    { enabled: !isPagination }
   );
 
   // Reset cursors and pagination if page size prop changes
   useEffect(() => {
-    setCursors({ 0: null });
-    setPagination((prev) => ({ 
-      ...prev, 
-      pageIndex: 0, 
-      pageSize 
-    }));
-  }, [pageSize]);
-
-
-  // Store next cursor for the next page
-  useEffect(() => {
-    if (data?.nextCursor !== undefined && data?.nextCursor !== null) {
-      setCursors((prev) => ({
-        ...prev,
-        [pagination.pageIndex + 1]: data.nextCursor,
+    if (isPagination) {
+      setCursors({ 0: null });
+      setPagination((prev) => ({ 
+        ...prev, 
+        pageIndex: 0, 
+        pageSize 
       }));
     }
-  }, [data, pagination.pageIndex]);
+  }, [pageSize, isPagination]);
 
-  // Trick MRT into enabling/disabling the Next button correctly
+  // Store next cursor for the next page (only for paginated mode)
+  useEffect(() => {
+    if (isPagination && pagedData?.nextCursor !== undefined && pagedData?.nextCursor !== null) {
+      setCursors((prev) => ({
+        ...prev,
+        [pagination.pageIndex + 1]: pagedData.nextCursor,
+      }));
+    }
+  }, [pagedData, pagination.pageIndex, isPagination]);
+
+  const tableData = useMemo(() => {
+    if (isPagination) return pagedData?.items || [];
+    return allData || [];
+  }, [isPagination, pagedData, allData]);
+
+  const isLoading = isPagination ? isPagedLoading : isAllLoading;
+  const error = isPagination ? pagedError : allError;
+
+  // Row count for pagination status
   const rowCount = useMemo(() => {
-    if (!data) return 0;
-    const currentCount = (pagination.pageIndex + 1) * pagination.pageSize;
-    return data.hasMore ? currentCount + 1 : currentCount;
-  }, [data, pagination.pageIndex, pagination.pageSize]);
+    if (isPagination) {
+      if (!pagedData) return 0;
+      const currentCount = (pagination.pageIndex + 1) * pagination.pageSize;
+      return pagedData.hasMore ? currentCount + 1 : currentCount;
+    }
+    return allData?.length || 0;
+  }, [isPagination, pagedData, allData, pagination.pageIndex, pagination.pageSize]);
 
   const table = useMaterialReactTable({
     columns,
-    data: data?.items || [],
-    manualPagination: true,
+    data: tableData,
+    manualPagination: isPagination,
     rowCount,
     ...tableOptions,
     state: {

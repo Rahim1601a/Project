@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Box, Typography, Button, IconButton, Tooltip, Chip } from '@mui/material';
+import { Box, Typography, Button, IconButton, Tooltip, Chip, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
 import { type MRT_ColumnDef } from 'material-react-table';
 import { Edit as EditIcon, Delete as DeleteIcon, Add as AddIcon } from '@mui/icons-material';
 import { GenericTable } from '../components/GenericTable';
@@ -16,10 +16,14 @@ export default function Employees() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+  
+  // Confirmation dialog state
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [employeeToDelete, setEmployeeToDelete] = useState<Employee | null>(null);
 
   const { mutateAsync: createEmployee, isPending: isCreating } = useCreateEmployee();
   const { mutateAsync: updateEmployee, isPending: isUpdating } = useUpdateEmployee();
-  const { mutateAsync: deleteEmployee } = useDeleteEmployee();
+  const { mutateAsync: deleteEmployee, isPending: isDeleting } = useDeleteEmployee();
 
 
   const columns = useMemo<MRT_ColumnDef<Employee>[]>(
@@ -98,13 +102,19 @@ export default function Employees() {
     }
   };
 
-  const handleDeleteEmployee = async (row: any) => {
-    if (window.confirm(`Are you sure you want to delete ${row.original.firstName}?`)) {
-      try {
-        await deleteEmployee(row.original.id);
-      } catch (error) {
-        console.error(error);
-      }
+  const openDeleteConfirm = (employee: Employee) => {
+    setEmployeeToDelete(employee);
+    setIsDeleteConfirmOpen(true);
+  };
+
+  const handleDeleteEmployee = async () => {
+    if (!employeeToDelete) return;
+    try {
+      await deleteEmployee(employeeToDelete.id);
+      setIsDeleteConfirmOpen(false);
+      setEmployeeToDelete(null);
+    } catch (error) {
+      console.error('Delete failed:', error);
     }
   };
 
@@ -132,7 +142,7 @@ export default function Employees() {
                 </IconButton>
               </Tooltip>
               <Tooltip title="Delete">
-                <IconButton color="error" onClick={() => handleDeleteEmployee(row)}>
+                <IconButton color="error" onClick={() => openDeleteConfirm(row.original)}>
                   <DeleteIcon />
                 </IconButton>
               </Tooltip>
@@ -171,6 +181,20 @@ export default function Employees() {
           isSaving={isUpdating}
         />
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={isDeleteConfirmOpen} onClose={() => setIsDeleteConfirmOpen(false)}>
+        <DialogTitle>Confirm Delete</DialogTitle>
+        <DialogContent>
+          Are you sure you want to delete {employeeToDelete?.firstName} {employeeToDelete?.lastName}?
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setIsDeleteConfirmOpen(false)}>Cancel</Button>
+          <Button onClick={handleDeleteEmployee} color="error" variant="contained" disabled={isDeleting}>
+            {isDeleting ? 'Deleting...' : 'Delete'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

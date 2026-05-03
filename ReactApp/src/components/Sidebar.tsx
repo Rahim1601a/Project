@@ -63,7 +63,7 @@ export function Sidebar() {
           {MENU_ITEMS.map((item) => {
             const active = location.pathname === item.path;
             return (
-              <ListItem key={item.text} disablePadding sx={{ mb: 1 }}>
+              <ListItem key={item.text} component="div" disablePadding sx={{ mb: 1 }}>
                 <ListItemButton
                   component={Link}
                   to={item.path}

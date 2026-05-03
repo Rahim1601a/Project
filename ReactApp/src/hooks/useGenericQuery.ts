@@ -1,9 +1,12 @@
 import {
   useQuery,
+  useInfiniteQuery,
   useMutation,
   type UseQueryOptions,
   type UseMutationOptions,
+  type UseInfiniteQueryOptions,
   type QueryKey,
+  type InfiniteData,
 } from '@tanstack/react-query';
 import { apiClient } from '../api/apiClient';
 
@@ -57,13 +60,14 @@ export function useGenericMutation<
   TVariables = unknown,
   TContext = unknown
 >(
-  url: string,
+  url: string | ((variables: TVariables) => string),
   method: 'POST' | 'PUT' | 'PATCH' | 'DELETE' = 'POST',
   options?: Omit<UseMutationOptions<T, TError, TVariables, TContext>, 'mutationFn'>
 ) {
   return useMutation<T, TError, TVariables, TContext>({
     mutationFn: async (variables: TVariables) => {
-      const response = await apiClient<ApiResponse<T>>(url, {
+      const resolvedUrl = typeof url === 'function' ? url(variables) : url;
+      const response = await apiClient<ApiResponse<T>>(resolvedUrl, {
         method,
         body: variables ? JSON.stringify(variables) : undefined,
       });
@@ -109,3 +113,45 @@ export function useGenericCursorQuery<
     ...options,
   });
 }
+
+/**
+ * A generic hook for infinite scrolling (GET requests with cursor pagination)
+ */
+export function useGenericInfiniteQuery<
+  T = unknown,
+  TError = Error,
+  TQueryKey extends QueryKey = QueryKey
+>(
+  queryKey: TQueryKey,
+  url: string,
+  pageSize: number = 10,
+  params?: Record<string, string | number | boolean>,
+  options?: Omit<UseInfiniteQueryOptions<CursorPagedResponse<T>, TError, InfiniteData<CursorPagedResponse<T>, number | null>, TQueryKey, number | null>, 'queryKey' | 'queryFn' | 'initialPageParam' | 'getNextPageParam'>
+) {
+  return useInfiniteQuery<
+    CursorPagedResponse<T>, 
+    TError, 
+    InfiniteData<CursorPagedResponse<T>, number | null>, 
+    TQueryKey, 
+    number | null
+  >({
+    queryKey,
+    queryFn: async ({ pageParam = null }) => {
+      const response = await apiClient<ApiResponse<CursorPagedResponse<T>>>(url, {
+        params: {
+          ...params,
+          pageSize,
+          ...(pageParam !== null ? { cursor: pageParam } : {}),
+        },
+      });
+      if (!response.success) {
+        throw new Error(response.message || 'API Error');
+      }
+      return response.data;
+    },
+    initialPageParam: null,
+    getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.nextCursor : undefined),
+    ...options,
+  });
+}
+

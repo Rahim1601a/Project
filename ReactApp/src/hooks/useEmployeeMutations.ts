@@ -1,6 +1,5 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiClient } from '../api/apiClient';
-import type { ApiResponse } from '../types/api';
+import { useQueryClient } from '@tanstack/react-query';
+import { useGenericMutation } from './useGenericQuery';
 
 export type Company = {
   id: number;
@@ -26,71 +25,78 @@ export type Employee = {
   countries: Country[];
 };
 
+/** Payload structure expected by the API */
+interface EmployeePayload {
+  id?: number;
+  firstName: string;
+  lastName: string;
+  position: string;
+  department: string;
+  salary: number;
+  companyId?: number;
+  countryIds: number[];
+}
+
+/** Helper to map Employee entity to API Payload */
+const mapToPayload = (employee: Partial<Employee>): EmployeePayload => ({
+  id: employee.id,
+  firstName: employee.firstName || '',
+  lastName: employee.lastName || '',
+  position: employee.position || '',
+  department: employee.department || '',
+  salary: employee.salary || 0,
+  companyId: employee.companyId,
+  countryIds: employee.countries?.map(c => c.id) || []
+});
+
 export function useCreateEmployee() {
   const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (employee: Omit<Employee, 'id'>) => {
-      const payload = {
-        firstName: employee.firstName,
-        lastName: employee.lastName,
-        position: employee.position,
-        department: employee.department,
-        salary: employee.salary,
-        companyId: employee.companyId,
-        countryIds: employee.countries?.map(c => c.id) || []
-      };
-      const res = await apiClient<ApiResponse<Employee>>('/employees', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
-      if (!res.success) throw new Error(res.message);
-      return res.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['employees'] });
-    },
-  });
+  const mutation = useGenericMutation<Employee, Error, EmployeePayload>(
+    '/employees',
+    'POST',
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ['employees'] });
+      },
+    }
+  );
+
+  // Return a wrapped version that handles the mapping
+  return {
+    ...mutation,
+    mutate: (employee: Omit<Employee, 'id'>) => mutation.mutate(mapToPayload(employee)),
+    mutateAsync: (employee: Omit<Employee, 'id'>) => mutation.mutateAsync(mapToPayload(employee)),
+  };
 }
 
 export function useUpdateEmployee() {
   const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (employee: Employee) => {
-      const payload = {
-        id: employee.id,
-        firstName: employee.firstName,
-        lastName: employee.lastName,
-        position: employee.position,
-        department: employee.department,
-        salary: employee.salary,
-        companyId: employee.companyId,
-        countryIds: employee.countries?.map(c => c.id) || []
-      };
-      const res = await apiClient<ApiResponse<boolean>>(`/employees/${employee.id}`, {
-        method: 'PUT',
-        body: JSON.stringify(payload),
-      });
-      if (!res.success) throw new Error(res.message);
-      return res.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['employees'] });
-    },
-  });
+  const mutation = useGenericMutation<boolean, Error, EmployeePayload>(
+    (variables) => `/employees/${variables.id}`,
+    'PUT',
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ['employees'] });
+      },
+    }
+  );
+
+  return {
+    ...mutation,
+    mutate: (employee: Employee) => mutation.mutate(mapToPayload(employee)),
+    mutateAsync: (employee: Employee) => mutation.mutateAsync(mapToPayload(employee)),
+  };
 }
 
 export function useDeleteEmployee() {
   const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (id: number) => {
-      const res = await apiClient<ApiResponse<boolean>>(`/employees/${id}`, {
-        method: 'DELETE',
-      });
-      if (!res.success) throw new Error(res.message);
-      return res.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['employees'] });
-    },
-  });
+  return useGenericMutation<boolean, Error, number>(
+    (id) => `/employees/${id}`,
+    'DELETE',
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ['employees'] });
+      },
+    }
+  );
 }
