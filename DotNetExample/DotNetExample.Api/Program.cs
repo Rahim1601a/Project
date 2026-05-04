@@ -33,7 +33,7 @@ builder.Services.AddCors(options =>
     options.AddPolicy("AllowReactApp",
         policy =>
         {
-            policy.WithOrigins("http://localhost:5173")
+            policy.AllowAnyOrigin()
                   .AllowAnyHeader()
                   .AllowAnyMethod();
         });
@@ -57,5 +57,12 @@ app.UseCors("AllowReactApp");
 app.MapEmployeeEndpoints();
 app.MapCompanyEndpoints();
 app.MapCountryEndpoints();
+
+// Seed data
+using (var scope = app.Services.CreateScope())
+{
+    var repository = scope.ServiceProvider.GetRequiredService<IEmployeeRepository>();
+    repository.SeedData();
+}
 
 app.Run();

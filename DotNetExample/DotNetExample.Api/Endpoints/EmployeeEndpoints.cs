@@ -15,6 +15,18 @@ public static class EmployeeEndpoints
             return result.Success ? Results.Ok(result) : Results.BadRequest(result);
         });
 
+        group.MapGet("/lookup", async (int? cursor, int? pageSize, ISender mediator) =>
+        {
+            var result = await mediator.Send(new GetEmployeesLookupQuery(cursor, pageSize ?? 100));
+            return result.Success ? Results.Ok(result) : Results.BadRequest(result);
+        });
+
+        group.MapGet("/search", async (string? q, int? limit, ISender mediator) =>
+        {
+            var result = await mediator.Send(new SearchEmployeesQuery(q ?? "", limit ?? 10));
+            return result.Success ? Results.Ok(result) : Results.BadRequest(result);
+        });
+
         group.MapGet("/{id:int}", async (int id, ISender mediator) =>
         {
             var result = await mediator.Send(new GetEmployeeByIdQuery(id));

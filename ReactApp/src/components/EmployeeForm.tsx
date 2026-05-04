@@ -1,35 +1,44 @@
 import { useEffect } from 'react';
-import { useForm, Controller, useWatch } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { 
-  Button, 
-  TextField, 
-  Dialog, 
-  DialogActions, 
-  DialogContent, 
+import { useForm, useWatch, FormProvider } from 'react-hook-form';
+import { yupResolver } from '@hookform/resolvers/yup';
+import * as yup from 'yup';
+import {
+  Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
   DialogTitle,
-  Box 
+  Box
 } from '@mui/material';
 import { AutocompleteCursorDropdown } from './AutocompleteCursorDropdown';
-import type { Company, Country, Employee } from '../hooks/useEmployeeMutations';
+import { FormTextField } from './FormFields';
+import type { Employee } from '../hooks/useEmployeeMutations';
+import type { SelectOption } from '../types/common';
 
-const employeeSchema = z.object({
-  firstName: z.string().min(1, 'First Name is required'),
-  lastName: z.string().min(1, 'Last Name is required'),
-  position: z.string().min(1, 'Position is required'),
-  department: z.string().min(1, 'Department is required'),
-  salary: z.number().min(0, 'Salary must be at least 0'),
-  company: z.custom<Company>().nullable(),
-  countries: z.array(z.custom<Country>()).min(1, 'At least one country is required'),
+interface EmployeeFormData {
+  firstName: string;
+  lastName: string;
+  position: string;
+  department: string;
+  salary: number;
+  company: SelectOption | null;
+  countries: SelectOption[];
+}
+
+const employeeSchema: yup.ObjectSchema<EmployeeFormData> = yup.object({
+  firstName: yup.string().required('First Name is required'),
+  lastName: yup.string().required('Last Name is required'),
+  position: yup.string().required('Position is required'),
+  department: yup.string().required('Department is required'),
+  salary: yup.number().typeError('Salary must be a number').min(0, 'Salary must be at least 0').required('Salary is required'),
+  company: yup.mixed<SelectOption>().nullable().default(null),
+  countries: yup.array().of(yup.mixed<SelectOption>().required()).min(1, 'At least one country is required').required(),
 });
-
-type EmployeeFormData = z.infer<typeof employeeSchema>;
 
 interface EmployeeFormProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (data: EmployeeFormData) => void;
+  onSubmit: (data: any) => void;
   initialData?: Partial<Employee>;
   title: string;
   isSaving: boolean;
@@ -43,13 +52,8 @@ export function EmployeeForm({
   title,
   isSaving,
 }: EmployeeFormProps) {
-  const {
-    control,
-    handleSubmit,
-    formState: { errors },
-    reset,
-  } = useForm<EmployeeFormData>({
-    resolver: zodResolver(employeeSchema),
+  const methods = useForm<EmployeeFormData>({
+    resolver: yupResolver(employeeSchema) as any,
     defaultValues: {
       firstName: '',
       lastName: '',
@@ -61,10 +65,16 @@ export function EmployeeForm({
     },
   });
 
+  const {
+    control,
+    handleSubmit,
+    reset,
+  } = methods;
+
   // Watch the company field for cascading
   const selectedCompany = useWatch({ control, name: 'company' });
 
-  // Reset form when initialData changes or dialog closes/opens
+  // Reset form when initialData changes
   useEffect(() => {
     if (open) {
       reset({
@@ -73,8 +83,8 @@ export function EmployeeForm({
         position: initialData?.position || '',
         department: initialData?.department || '',
         salary: initialData?.salary || 0,
-        company: initialData?.company || null,
-        countries: initialData?.countries || [],
+        company: initialData?.company ? { value: initialData.company.id, label: initialData.company.name } : null,
+        countries: initialData?.countries?.map(c => ({ value: c.id, label: c.name })) || [],
       });
     } else {
       reset();
@@ -84,146 +94,73 @@ export function EmployeeForm({
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
       <DialogTitle>{title}</DialogTitle>
-      <form onSubmit={handleSubmit((data) => onSubmit(data))}>
-        <DialogContent>
-          <Box 
-            sx={{ 
-              display: 'grid', 
-              gridTemplateColumns: '1fr 1fr', 
-              gap: 2, 
-              mt: 1 
-            }}
-          >
-            <Box sx={{ gridColumn: 'span 1' }}>
-              <Controller
-                name="firstName"
-                control={control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    label="First Name"
-                    fullWidth
-                    error={!!errors.firstName}
-                    helperText={errors.firstName?.message}
-                  />
-                )}
-              />
+      <FormProvider {...methods}>
+        <form onSubmit={handleSubmit((data) => onSubmit(data))}>
+          <DialogContent>
+            <Box
+              sx={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: 2,
+                mt: 1
+              }}
+            >
+              <Box sx={{ gridColumn: 'span 1' }}>
+                <FormTextField name="firstName" label="First Name" />
+              </Box>
+              <Box sx={{ gridColumn: 'span 1' }}>
+                <FormTextField name="lastName" label="Last Name" />
+              </Box>
+              <Box sx={{ gridColumn: 'span 2' }}>
+                <FormTextField name="position" label="Position" />
+              </Box>
+              <Box sx={{ gridColumn: 'span 2' }}>
+                <FormTextField name="department" label="Department" />
+              </Box>
+              <Box sx={{ gridColumn: 'span 2' }}>
+                <FormTextField
+                  name="salary"
+                  label="Salary"
+                  type="number"
+                  onChange={(e) => methods.setValue('salary', Number(e.target.value), { shouldValidate: true })}
+                />
+              </Box>
+
+              <Box sx={{ gridColumn: 'span 2' }}>
+                <AutocompleteCursorDropdown
+                  control={control}
+                  name="company"
+                  label="Company"
+                  url="/companies"
+                  queryKey={['companies']}
+                  isPagination={false}
+                />
+              </Box>
+
+              <Box sx={{ gridColumn: 'span 2' }}>
+                <AutocompleteCursorDropdown
+                  control={control}
+                  name="countries"
+                  label="Preferred Countries"
+                  url="/countries"
+                  queryKey={['countries']}
+                  isMulti
+                  isPagination={true}
+                  isCascading={true}
+                  parentId={selectedCompany?.value as number}
+                  parentFilterKey="companyId"
+                />
+              </Box>
             </Box>
-            <Box sx={{ gridColumn: 'span 1' }}>
-              <Controller
-                name="lastName"
-                control={control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    label="Last Name"
-                    fullWidth
-                    error={!!errors.lastName}
-                    helperText={errors.lastName?.message}
-                  />
-                )}
-              />
-            </Box>
-            <Box sx={{ gridColumn: 'span 2' }}>
-              <Controller
-                name="position"
-                control={control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    label="Position"
-                    fullWidth
-                    error={!!errors.position}
-                    helperText={errors.position?.message}
-                  />
-                )}
-              />
-            </Box>
-            <Box sx={{ gridColumn: 'span 2' }}>
-              <Controller
-                name="department"
-                control={control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    label="Department"
-                    fullWidth
-                    error={!!errors.department}
-                    helperText={errors.department?.message}
-                  />
-                )}
-              />
-            </Box>
-            <Box sx={{ gridColumn: 'span 2' }}>
-              <Controller
-                name="salary"
-                control={control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    onChange={(e) => field.onChange(Number(e.target.value))}
-                    label="Salary"
-                    type="number"
-                    fullWidth
-                    error={!!errors.salary}
-                    helperText={errors.salary?.message}
-                  />
-                )}
-              />
-            </Box>
-            {/* Company — independent dropdown (no cascading) */}
-            <Box sx={{ gridColumn: 'span 2' }}>
-              <Controller
-                name="company"
-                control={control}
-                render={({ field }) => (
-                  <AutocompleteCursorDropdown<Company>
-                    {...field}
-                    label="Company"
-                    url="/companies"
-                    queryKey={['companies']}
-                    getOptionLabel={(option) => option.name}
-                    error={!!errors.company}
-                    helperText={errors.company?.message}
-                    isPagination={false}
-                  />
-                )}
-              />
-            </Box>
-            {/* Countries — cascading dropdown: depends on Company selection */}
-            <Box sx={{ gridColumn: 'span 2' }}>
-              <Controller
-                name="countries"
-                control={control}
-                render={({ field }) => (
-                  <AutocompleteCursorDropdown<Country>
-                    value={field.value}
-                    onChange={(val) => {
-                      field.onChange(val);
-                    }}
-                    label="Countries"
-                    url="/countries"
-                    queryKey={['countries']}
-                    isMulti
-                    getOptionLabel={(option) => option.name}
-                    error={!!errors.countries}
-                    helperText={errors.countries?.message}
-                    isCascading={true}
-                    parentId={selectedCompany?.id ?? null}
-                    parentFilterKey="companyId"
-                  />
-                )}
-              />
-            </Box>
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={onClose} disabled={isSaving}>Cancel</Button>
-          <Button type="submit" variant="contained" disabled={isSaving}>
-            {isSaving ? 'Saving...' : 'Save'}
-          </Button>
-        </DialogActions>
-      </form>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={onClose} disabled={isSaving}>Cancel</Button>
+            <Button type="submit" variant="contained" disabled={isSaving}>
+              {isSaving ? 'Saving...' : 'Save'}
+            </Button>
+          </DialogActions>
+        </form>
+      </FormProvider>
     </Dialog>
   );
 }

@@ -5,7 +5,7 @@ using MediatR;
 
 namespace DotNetExample.Application.Features.Companies;
 
-public class GetCompaniesHandler : IRequestHandler<GetCompaniesQuery, ResponseModel<CursorPagedResponseModel<Company>>>
+public class GetCompaniesHandler : IRequestHandler<GetCompaniesQuery, ResponseModel<CursorPagedResponseModel<SelectOptionModel>>>
 {
     private readonly IEmployeeRepository _repository;
 
@@ -14,15 +14,34 @@ public class GetCompaniesHandler : IRequestHandler<GetCompaniesQuery, ResponseMo
         _repository = repository;
     }
 
-    public async Task<ResponseModel<CursorPagedResponseModel<Company>>> Handle(GetCompaniesQuery request, CancellationToken cancellationToken)
+    public async Task<ResponseModel<CursorPagedResponseModel<SelectOptionModel>>> Handle(GetCompaniesQuery request, CancellationToken cancellationToken)
     {
-        var items = await _repository.GetCompaniesAsync(request.Cursor, request.PageSize);
-        var itemList = items.ToList();
-        
-        var nextCursor = itemList.LastOrDefault()?.Id;
-        var hasMore = nextCursor.HasValue && await _repository.HasMoreCompaniesAsync(nextCursor.Value);
+        try
+        {
+            var companies = await _repository.GetCompaniesAsync(request.Cursor, request.PageSize);
+            var companyList = companies.ToList();
+            
+            var options = companyList.Select(c => new SelectOptionModel 
+            { 
+                Value = c.Id, 
+                Label = c.Name 
+            }).ToList();
 
-        var pagedData = CursorPagedResponseModel<Company>.Create(itemList, nextCursor, hasMore);
-        return ResponseModel<CursorPagedResponseModel<Company>>.Ok(pagedData, "Company list retrieved successfully");
+            int? nextCursor = companyList.LastOrDefault()?.Id;
+            bool hasMore = nextCursor.HasValue && await _repository.HasMoreCompaniesAsync(nextCursor.Value);
+
+            var result = new CursorPagedResponseModel<SelectOptionModel>
+            {
+                Items = options,
+                NextCursor = nextCursor,
+                HasMore = hasMore
+            };
+
+            return ResponseModel<CursorPagedResponseModel<SelectOptionModel>>.Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return ResponseModel<CursorPagedResponseModel<SelectOptionModel>>.Failure(ex.Message);
+        }
     }
 }

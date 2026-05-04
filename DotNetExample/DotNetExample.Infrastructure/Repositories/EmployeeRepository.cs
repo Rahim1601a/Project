@@ -12,10 +12,9 @@ public class EmployeeRepository : IEmployeeRepository
     public EmployeeRepository(AppDbContext context)
     {
         _context = context;
-        SeedData();
     }
 
-    private void SeedData()
+    public void SeedData()
     {
         if (!_context.Companies.Any())
         {
@@ -168,6 +167,25 @@ public class EmployeeRepository : IEmployeeRepository
             query = query.Where(e => e.Countries.Any(c => c.Id == countryId.Value));
         }
         return await query.AnyAsync(e => e.Id > cursor);
+    }
+
+    public async Task<IEnumerable<Employee>> SearchEmployeesAsync(string searchTerm, int limit)
+    {
+        var query = _context.Employees
+            .Include(e => e.Company)
+            .Include(e => e.Countries)
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(searchTerm))
+        {
+            searchTerm = searchTerm.ToLower();
+            query = query.Where(e => 
+                e.FirstName.ToLower().Contains(searchTerm) || 
+                e.LastName.ToLower().Contains(searchTerm) ||
+                e.Position.ToLower().Contains(searchTerm));
+        }
+
+        return await query.OrderBy(e => e.FirstName).Take(limit).ToListAsync();
     }
 
     // ── Companies ─────────────────────────────────────────────────────

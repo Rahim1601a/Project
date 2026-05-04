@@ -4,6 +4,7 @@ import HomeRoundedIcon from '@mui/icons-material/HomeRounded';
 import DashboardRoundedIcon from '@mui/icons-material/DashboardRounded';
 import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded';
 import PeopleRoundedIcon from '@mui/icons-material/PeopleRounded';
+import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
 
 export const DRAWER_WIDTH = 280;
 
@@ -11,6 +12,7 @@ const MENU_ITEMS = [
   { text: 'Home', path: '/', icon: <HomeRoundedIcon /> },
   { text: 'Dashboard', path: '/dashboard', icon: <DashboardRoundedIcon /> },
   { text: 'Employees', path: '/employees', icon: <PeopleRoundedIcon /> },
+  { text: 'Autocomplete', path: '/autocomplete', icon: <SearchRoundedIcon /> },
   { text: 'Settings', path: '/settings', icon: <SettingsRoundedIcon /> },
 ];
 

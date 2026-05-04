@@ -5,7 +5,7 @@ using MediatR;
 
 namespace DotNetExample.Application.Features.Countries;
 
-public class GetCountriesHandler : IRequestHandler<GetCountriesQuery, ResponseModel<CursorPagedResponseModel<Country>>>
+public class GetCountriesHandler : IRequestHandler<GetCountriesQuery, ResponseModel<CursorPagedResponseModel<SelectOptionModel>>>
 {
     private readonly IEmployeeRepository _repository;
 
@@ -14,15 +14,34 @@ public class GetCountriesHandler : IRequestHandler<GetCountriesQuery, ResponseMo
         _repository = repository;
     }
 
-    public async Task<ResponseModel<CursorPagedResponseModel<Country>>> Handle(GetCountriesQuery request, CancellationToken cancellationToken)
+    public async Task<ResponseModel<CursorPagedResponseModel<SelectOptionModel>>> Handle(GetCountriesQuery request, CancellationToken cancellationToken)
     {
-        var items = await _repository.GetCountriesAsync(request.Cursor, request.PageSize, request.CompanyId);
-        var itemList = items.ToList();
-        
-        var nextCursor = itemList.LastOrDefault()?.Id;
-        var hasMore = nextCursor.HasValue && await _repository.HasMoreCountriesAsync(nextCursor.Value, request.CompanyId);
+        try
+        {
+            var countries = await _repository.GetCountriesAsync(request.Cursor, request.PageSize, request.CompanyId);
+            var countryList = countries.ToList();
+            
+            var options = countryList.Select(c => new SelectOptionModel 
+            { 
+                Value = c.Id, 
+                Label = c.Name 
+            }).ToList();
 
-        var pagedData = CursorPagedResponseModel<Country>.Create(itemList, nextCursor, hasMore);
-        return ResponseModel<CursorPagedResponseModel<Country>>.Ok(pagedData, "Country list retrieved successfully");
+            int? nextCursor = countryList.LastOrDefault()?.Id;
+            bool hasMore = nextCursor.HasValue && await _repository.HasMoreCountriesAsync(nextCursor.Value, request.CompanyId);
+
+            var result = new CursorPagedResponseModel<SelectOptionModel>
+            {
+                Items = options,
+                NextCursor = nextCursor,
+                HasMore = hasMore
+            };
+
+            return ResponseModel<CursorPagedResponseModel<SelectOptionModel>>.Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return ResponseModel<CursorPagedResponseModel<SelectOptionModel>>.Failure(ex.Message);
+        }
     }
 }

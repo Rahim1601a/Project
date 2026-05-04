@@ -11,6 +11,7 @@ public interface IEmployeeRepository
     Task UpdateEmployeeAsync(Employee employee, IEnumerable<int> countryIds);
     Task DeleteEmployeeAsync(int id);
     Task<bool> HasMoreEmployeesAsync(int cursor, int? countryId = null);
+    Task<IEnumerable<Employee>> SearchEmployeesAsync(string searchTerm, int limit);
     
     // Companies
     Task<IEnumerable<Company>> GetCompaniesAsync(int? cursor, int pageSize);
@@ -19,4 +20,5 @@ public interface IEmployeeRepository
     // Countries
     Task<IEnumerable<Country>> GetCountriesAsync(int? cursor, int pageSize, int? companyId = null);
     Task<bool> HasMoreCountriesAsync(int cursor, int? companyId = null);
+    void SeedData();
 }
