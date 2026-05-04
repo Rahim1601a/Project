@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm, useWatch, FormProvider } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
@@ -12,6 +12,7 @@ import {
 } from '@mui/material';
 import { AutocompleteCursorDropdown } from './AutocompleteCursorDropdown';
 import { FormTextField } from './FormFields';
+import { useAutocompleteLookup } from '../hooks/useAutocompleteLookup';
 import type { Employee } from '../hooks/useEmployeeMutations';
 import type { SelectOption } from '../types/common';
 
@@ -69,12 +70,35 @@ export function EmployeeForm({
     control,
     handleSubmit,
     reset,
+    setValue
   } = methods;
 
-  // Watch the company field for cascading
   const selectedCompany = useWatch({ control, name: 'company' });
 
-  // Reset form when initialData changes
+  // Data fetching hooks
+  const companyData = useAutocompleteLookup({
+    url: '/companies',
+    queryKey: ['companies'],
+    isPagination: false,
+  });
+
+  const countryData = useAutocompleteLookup({
+    url: '/countries',
+    queryKey: ['countries'],
+    isPagination: true,
+    isCascading: true,
+    parentId: selectedCompany?.value as number,
+    parentFilterKey: 'companyId',
+    isEnabled: !!selectedCompany,
+  });
+
+  // Handle cascading reset
+  useEffect(() => {
+    if (!selectedCompany) {
+      setValue('countries', []);
+    }
+  }, [selectedCompany, setValue]);
+
   useEffect(() => {
     if (open) {
       reset({
@@ -97,32 +121,14 @@ export function EmployeeForm({
       <FormProvider {...methods}>
         <form onSubmit={handleSubmit((data) => onSubmit(data))}>
           <DialogContent>
-            <Box
-              sx={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gap: 2,
-                mt: 1
-              }}
-            >
-              <Box sx={{ gridColumn: 'span 1' }}>
-                <FormTextField name="firstName" label="First Name" />
-              </Box>
-              <Box sx={{ gridColumn: 'span 1' }}>
-                <FormTextField name="lastName" label="Last Name" />
-              </Box>
+            <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, mt: 1 }}>
+              <Box sx={{ gridColumn: 'span 1' }}><FormTextField name="firstName" label="First Name" /></Box>
+              <Box sx={{ gridColumn: 'span 1' }}><FormTextField name="lastName" label="Last Name" /></Box>
+              <Box sx={{ gridColumn: 'span 2' }}><FormTextField name="position" label="Position" /></Box>
+              <Box sx={{ gridColumn: 'span 2' }}><FormTextField name="department" label="Department" /></Box>
               <Box sx={{ gridColumn: 'span 2' }}>
-                <FormTextField name="position" label="Position" />
-              </Box>
-              <Box sx={{ gridColumn: 'span 2' }}>
-                <FormTextField name="department" label="Department" />
-              </Box>
-              <Box sx={{ gridColumn: 'span 2' }}>
-                <FormTextField
-                  name="salary"
-                  label="Salary"
-                  type="number"
-                  onChange={(e) => methods.setValue('salary', Number(e.target.value), { shouldValidate: true })}
+                <FormTextField name="salary" label="Salary" type="number"
+                  onChange={(e) => setValue('salary', Number(e.target.value), { shouldValidate: true })}
                 />
               </Box>
 
@@ -131,9 +137,8 @@ export function EmployeeForm({
                   control={control}
                   name="company"
                   label="Company"
-                  url="/companies"
-                  queryKey={['companies']}
-                  isPagination={false}
+                  options={companyData.options}
+                  isLoading={companyData.isLoading}
                 />
               </Box>
 
@@ -142,13 +147,13 @@ export function EmployeeForm({
                   control={control}
                   name="countries"
                   label="Preferred Countries"
-                  url="/countries"
-                  queryKey={['countries']}
+                  options={countryData.options}
+                  isLoading={countryData.isLoading}
+                  onScrollEnd={() => countryData.hasNextPage && countryData.fetchNextPage()}
                   isMulti
                   isPagination={true}
-                  isCascading={true}
-                  parentId={selectedCompany?.value as number}
-                  parentFilterKey="companyId"
+                  isDisabled={!selectedCompany}
+                  placeholderText={!selectedCompany ? "Select a company first" : ""}
                 />
               </Box>
             </Box>

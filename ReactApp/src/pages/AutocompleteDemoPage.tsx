@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Box, Container, Typography, Grid, Paper, Divider, Button } from '@mui/material';
 import { useForm } from 'react-hook-form';
 import { AutocompleteCursorDropdown } from '../components/AutocompleteCursorDropdown';
+import { useAutocompleteLookup } from '../hooks/useAutocompleteLookup';
 import type { SelectOption } from '../types/common';
 
 interface DemoFormData {
@@ -10,6 +11,8 @@ interface DemoFormData {
 }
 
 const AutocompleteDemoPage: React.FC = () => {
+  const [serverSearchTerm, setServerSearchTerm] = useState('');
+  
   const { control, handleSubmit, watch } = useForm<DemoFormData>({
     defaultValues: {
       serverEmployee: null,
@@ -18,6 +21,22 @@ const AutocompleteDemoPage: React.FC = () => {
   });
 
   const formValues = watch();
+
+  // Initialize data hooks
+  const serverData = useAutocompleteLookup({
+    url: '/employees/search',
+    queryKey: ['employees', 'search'],
+    isServerSearch: true,
+    isPagination: true,
+    searchTerm: serverSearchTerm,
+  });
+
+  const clientData = useAutocompleteLookup({
+    url: '/employees/lookup',
+    queryKey: ['employees', 'lookup'],
+    isServerSearch: false,
+    isPagination: false,
+  });
 
   const onSubmit = (data: DemoFormData) => {
     console.log('Form Submitted:', data);
@@ -35,7 +54,6 @@ const AutocompleteDemoPage: React.FC = () => {
 
       <form onSubmit={handleSubmit(onSubmit)}>
         <Grid container spacing={4}>
-          {/* Server Side Section */}
           <Grid size={{ xs: 12, md: 6 }}>
             <Paper elevation={3} sx={{ p: 3, borderRadius: 2, height: '100%' }}>
               <Typography variant="h6" gutterBottom color="secondary">
@@ -43,16 +61,17 @@ const AutocompleteDemoPage: React.FC = () => {
               </Typography>
               <Typography variant="body2" sx={{ mb: 3 }}>
                 Queries <code>/employees/search</code> with virtualization and infinite scroll. 
-                Managed via <code>react-hook-form</code>.
               </Typography>
               <Divider sx={{ mb: 3 }} />
               
               <AutocompleteCursorDropdown 
                 control={control}
                 name="serverEmployee"
-                url="/employees/search"
-                queryKey={['employees', 'search']}
                 label="Search Employees (Server)"
+                options={serverData.options}
+                isLoading={serverData.isLoading}
+                onScrollEnd={() => serverData.hasNextPage && serverData.fetchNextPage()}
+                onSearchTermChange={setServerSearchTerm}
                 isServerSearch={true}
                 isPagination={true}
               />
@@ -66,24 +85,22 @@ const AutocompleteDemoPage: React.FC = () => {
             </Paper>
           </Grid>
 
-          {/* Client Side Section */}
           <Grid size={{ xs: 12, md: 6 }}>
             <Paper elevation={3} sx={{ p: 3, borderRadius: 2, height: '100%' }}>
               <Typography variant="h6" gutterBottom color="secondary">
                 Client-Side Filtering
               </Typography>
               <Typography variant="body2" sx={{ mb: 3 }}>
-                Fetches all from <code>/employees</code> once and filters locally. 
-                Managed via <code>react-hook-form</code>.
+                Fetches all from <code>/employees/lookup</code> once and filters locally. 
               </Typography>
               <Divider sx={{ mb: 3 }} />
 
               <AutocompleteCursorDropdown 
                 control={control}
                 name="clientEmployee"
-                url="/employees/lookup"
-                queryKey={['employees', 'lookup']}
                 label="Select Employee (Client Lookup)"
+                options={clientData.options}
+                isLoading={clientData.isLoading}
                 isServerSearch={false}
                 isPagination={false}
               />

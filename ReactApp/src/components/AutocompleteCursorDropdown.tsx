@@ -5,17 +5,14 @@ import {
   CircularProgress,
   TextField,
 } from '@mui/material';
-import { useQueryClient } from '@tanstack/react-query';
-import { useGenericQuery, useGenericInfiniteQuery } from '../hooks/useGenericQuery';
-import type { CursorPagedResponse } from '../types/api';
 import { List, useListRef, type RowComponentProps } from 'react-window';
 import { Controller, type Control } from 'react-hook-form';
 import type { SelectOption } from '../types/common';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
-const LISTBOX_PADDING = 8; // px — top/bottom padding inside the virtual list
-const ITEM_SIZE_SM = 36;   // row height on sm+ screens
-const ITEM_SIZE_XS = 48;   // row height on xs screens
+const LISTBOX_PADDING = 8;
+const ITEM_SIZE_SM = 36;
+const ITEM_SIZE_XS = 48;
 const MAX_VISIBLE_ITEMS = 8;
 
 // ─── Virtual Row Component ──────────────────────────────────────────────────
@@ -23,8 +20,6 @@ function VirtualRow(props: RowComponentProps & { itemData: any[] }) {
   const { index, style, itemData } = props;
   const item = itemData[index];
   if (!item) return null;
-  
-  // The item is [props, option]
   const [liProps, option] = item;
   
   return (
@@ -88,30 +83,34 @@ const VirtualListbox = React.forwardRef<
 
 // ─── Component Props ────────────────────────────────────────────────────────
 interface AutocompleteCursorDropdownProps {
-  url: string;
-  queryKey: any[];
   label: string;
+  // Data props (instead of URL/Key)
+  options: SelectOption[];
+  isLoading: boolean;
+  onScrollEnd?: () => void;
+  onSearchTermChange?: (term: string) => void;
+  
+  // UI props
   value?: SelectOption | SelectOption[] | null;
   onChange?: (value: SelectOption | SelectOption[] | null) => void;
   isMulti?: boolean;
   error?: boolean;
   helperText?: string;
-  pageSize?: number;
   isPagination?: boolean;
-  isCascading?: boolean;
-  parentId?: number | null;
-  parentFilterKey?: string;
   isServerSearch?: boolean;
-  searchParamName?: string;
+  isDisabled?: boolean;
+  placeholderText?: string;
   control?: Control<any>;
   name?: string;
 }
 
 // ─── Main Component ─────────────────────────────────────────────────────────
 export function AutocompleteCursorDropdown({
-  url,
-  queryKey,
   label,
+  options,
+  isLoading,
+  onScrollEnd,
+  onSearchTermChange,
   value,
   onChange,
   control,
@@ -119,85 +118,20 @@ export function AutocompleteCursorDropdown({
   isMulti = false,
   error = false,
   helperText = '',
-  pageSize = 10,
   isPagination = true,
-  isCascading = false,
-  parentId = null,
-  parentFilterKey = '',
   isServerSearch = false,
-  searchParamName = 'q',
+  isDisabled = false,
+  placeholderText = '',
 }: AutocompleteCursorDropdownProps) {
   const [open, setOpen] = useState(false);
   const [inputValue, setInputValue] = useState('');
-  const [debouncedInputValue, setDebouncedInputValue] = useState('');
-  const queryClient = useQueryClient();
-  const prevParentIdRef = React.useRef(parentId);
 
+  // Handle search term updates (for server-side search)
   useEffect(() => {
-    if (!isServerSearch) return;
-    const timer: ReturnType<typeof setTimeout> = setTimeout(() => {
-      setDebouncedInputValue(inputValue);
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [inputValue, isServerSearch]);
-
-  const effectiveQueryKey = useMemo(() => {
-    const baseKey = isCascading ? [...queryKey, 'cascading', parentFilterKey, parentId] : [...queryKey, 'standard'];
-    const modeKey = isPagination ? 'paginated' : 'all';
-    const searchKey = isServerSearch ? ['search', debouncedInputValue] : [];
-    return [...baseKey, modeKey, ...searchKey, ...(isPagination ? [pageSize] : [])];
-  }, [queryKey, isCascading, parentFilterKey, parentId, isPagination, isServerSearch, debouncedInputValue, pageSize]);
-
-  const apiParams = useMemo(() => {
-    const params: Record<string, string | number | boolean> = {};
-    if (isCascading && parentId != null && parentFilterKey) params[parentFilterKey] = parentId;
-    if (isServerSearch && debouncedInputValue) params[searchParamName] = debouncedInputValue;
-    return params;
-  }, [isCascading, parentId, parentFilterKey, isServerSearch, debouncedInputValue, searchParamName]);
-
-  useEffect(() => {
-    if (isCascading && prevParentIdRef.current !== parentId) {
-      if (onChange) onChange(isMulti ? [] : null);
-      queryClient.removeQueries({ queryKey });
-      prevParentIdRef.current = parentId;
+    if (isServerSearch && onSearchTermChange) {
+      onSearchTermChange(inputValue);
     }
-  }, [parentId, isCascading, isMulti, onChange, queryClient, queryKey]);
-
-  const isEnabled = isCascading ? open && parentId != null : true;
-
-  const { data: pagedData, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading: isPagedLoading } = useGenericInfiniteQuery<SelectOption>(
-    [...effectiveQueryKey, 'infinite'],
-    url,
-    pageSize,
-    apiParams,
-    { enabled: isEnabled && isPagination }
-  );
-
-  const { data: allData, isLoading: isAllLoading } = useGenericQuery<any>(
-    [...effectiveQueryKey, 'standard'],
-    url,
-    apiParams,
-    { enabled: isEnabled && !isPagination }
-  );
-
-  const options = useMemo(() => {
-    if (isPagination) return pagedData?.pages.flatMap((page) => (page as CursorPagedResponse<SelectOption>).items) || [];
-    if (!allData) return [];
-    if (Array.isArray(allData)) return allData;
-    // Handle CursorPagedResponseModel wrapper
-    const items = allData.items || allData.Items;
-    if (Array.isArray(items)) return items;
-    return [];
-  }, [isPagination, pagedData, allData]);
-
-  const isLoading = isPagination ? isPagedLoading : isAllLoading;
-
-  const handleScrollEnd = useCallback(() => {
-    if (isPagination && hasNextPage && !isFetchingNextPage) fetchNextPage();
-  }, [isPagination, hasNextPage, isFetchingNextPage, fetchNextPage]);
-
-  const isDisabled = isCascading && parentId == null;
-  const placeholderText = isDisabled ? `Select ${parentFilterKey?.replace('Id', '') || 'parent'} first` : '';
+  }, [inputValue, isServerSearch, onSearchTermChange]);
 
   const renderAutocomplete = (currentValue: any, currentOnChange: (val: any) => void, currentError?: boolean, currentHelperText?: string) => (
     <Autocomplete
@@ -216,12 +150,9 @@ export function AutocompleteCursorDropdown({
       isOptionEqualToValue={(option: SelectOption, val: SelectOption) => option.value === val.value}
       filterOptions={isServerSearch ? (x) => x : undefined}
       slotProps={{
-        listbox: { component: VirtualListbox, ...(isPagination ? { onScrollEnd: handleScrollEnd } : {}) } as any,
+        listbox: { component: VirtualListbox, ...(isPagination ? { onScrollEnd } : {}) } as any,
       }}
-      renderOption={(props, option) => {
-        // We pass the option object along with props to the virtual row
-        return [props, option] as any;
-      }}
+      renderOption={(props, option) => [props, option] as any}
       renderInput={(params) => {
         const { slotProps: paramsSlotProps, ...otherParams } = params;
         return (
@@ -237,7 +168,7 @@ export function AutocompleteCursorDropdown({
                 ...paramsSlotProps?.input,
                 endAdornment: (
                   <React.Fragment>
-                    {isLoading || (isPagination && isFetchingNextPage) ? <CircularProgress color="inherit" size={20} /> : null}
+                    {isLoading ? <CircularProgress color="inherit" size={20} /> : null}
                     {paramsSlotProps?.input?.endAdornment}
                   </React.Fragment>
                 ),
