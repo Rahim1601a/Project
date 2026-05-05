@@ -13,6 +13,7 @@ const MENU_ITEMS = [
   { text: 'Dashboard', path: '/dashboard', icon: <DashboardRoundedIcon /> },
   { text: 'Employees', path: '/employees', icon: <PeopleRoundedIcon /> },
   { text: 'Autocomplete', path: '/autocomplete', icon: <SearchRoundedIcon /> },
+  { text: 'Table Demo', path: '/table', icon: <SearchRoundedIcon /> }, // Added
   { text: 'Settings', path: '/settings', icon: <SettingsRoundedIcon /> },
 ];
 
@@ -21,7 +22,7 @@ export function Sidebar() {
 
   return (
     <Drawer
-      variant="permanent"
+      variant='permanent'
       sx={{
         width: DRAWER_WIDTH,
         flexShrink: 0,
@@ -34,29 +35,32 @@ export function Sidebar() {
       }}
     >
       <Box sx={{ p: 4, display: 'flex', alignItems: 'center', gap: 2 }}>
-        <Box 
-          sx={{ 
-            width: 42, 
-            height: 42, 
-            borderRadius: '14px', 
-            background: 'linear-gradient(135deg, #1976d2 0%, #9c27b0 100%)', 
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'center', 
-            color: 'white', 
+        <Box
+          sx={{
+            width: 42,
+            height: 42,
+            borderRadius: '14px',
+            background: 'linear-gradient(135deg, #1976d2 0%, #9c27b0 100%)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'white',
             fontWeight: 800,
             fontSize: '1.2rem',
-            boxShadow: '0 8px 16px rgba(25,118,210,0.3)'
+            boxShadow: '0 8px 16px rgba(25,118,210,0.3)',
           }}
         >
           R
         </Box>
-        <Typography variant="h5" sx={{ 
-          fontWeight: 800,
-          background: '-webkit-linear-gradient(45deg, #1976d2, #9c27b0)', 
-          WebkitBackgroundClip: 'text', 
-          WebkitTextFillColor: 'transparent' 
-        }}>
+        <Typography
+          variant='h5'
+          sx={{
+            fontWeight: 800,
+            background: '-webkit-linear-gradient(45deg, #1976d2, #9c27b0)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+          }}
+        >
           ReactApp
         </Typography>
       </Box>
@@ -65,7 +69,7 @@ export function Sidebar() {
           {MENU_ITEMS.map((item) => {
             const active = location.pathname === item.path;
             return (
-              <ListItem key={item.text} component="div" disablePadding sx={{ mb: 1 }}>
+              <ListItem key={item.text} component='div' disablePadding sx={{ mb: 1 }}>
                 <ListItemButton
                   component={Link}
                   to={item.path}
@@ -92,16 +96,8 @@ export function Sidebar() {
                     },
                   }}
                 >
-                  <ListItemIcon sx={{ minWidth: 44, color: active ? 'primary.main' : 'inherit' }}>
-                    {item.icon}
-                  </ListItemIcon>
-                  <ListItemText 
-                    primary={
-                      <Typography sx={{ fontWeight: active ? 700 : 500, fontSize: '1.05rem' }}>
-                        {item.text}
-                      </Typography>
-                    }
-                  />
+                  <ListItemIcon sx={{ minWidth: 44, color: active ? 'primary.main' : 'inherit' }}>{item.icon}</ListItemIcon>
+                  <ListItemText primary={<Typography sx={{ fontWeight: active ? 700 : 500, fontSize: '1.05rem' }}>{item.text}</Typography>} />
                 </ListItemButton>
               </ListItem>
             );

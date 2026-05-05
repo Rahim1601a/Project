@@ -5,17 +5,19 @@ import Dashboard from './pages/Dashboard';
 import Employees from './pages/Employees';
 import Settings from './pages/Settings';
 import AutocompleteDemo from './pages/AutocompleteDemoPage';
+import TableDemo from './pages/TableDemoPage';
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Layout />}>
+        <Route path='/' element={<Layout />}>
           <Route index element={<Home />} />
-          <Route path="dashboard" element={<Dashboard />} />
-          <Route path="employees" element={<Employees />} />
-          <Route path="autocomplete" element={<AutocompleteDemo />} />
-          <Route path="settings" element={<Settings />} />
+          <Route path='dashboard' element={<Dashboard />} />
+          <Route path='employees' element={<Employees />} />
+          <Route path='autocomplete' element={<AutocompleteDemo />} />
+          <Route path='table' element={<TableDemo />} />
+          <Route path='settings' element={<Settings />} />
         </Route>
       </Routes>
     </BrowserRouter>
