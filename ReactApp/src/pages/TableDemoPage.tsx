@@ -112,47 +112,63 @@ const mockData: Person[] = [
 ];
 
 const TableDemoPage: React.FC = () => {
+  const [data, setData] = useState<Person[]>(mockData);
+
   const columns = useMemo<ColumnDef<Person, any>[]>(
     () => [
       {
-        accessorKey: 'id',
-        header: 'ID',
+        accessorKey: "id",
+        header: "ID",
         size: 80,
+        enableEditing: false,
       },
       {
-        accessorKey: 'firstName',
-        header: 'First Name',
+        accessorKey: "firstName",
+        header: "First Name",
       },
       {
-        accessorKey: 'lastName',
-        header: 'Last Name',
+        accessorKey: "lastName",
+        header: "Last Name",
       },
       {
-        accessorKey: 'email',
-        header: 'Email',
+        accessorKey: "email",
+        header: "Email",
         size: 250,
       },
       {
-        accessorKey: 'age',
-        header: 'Age',
+        accessorKey: "age",
+        header: "Age",
         size: 100,
-        cell: (info) => (
-          <Typography variant='body2' color={info.getValue() > 30 ? 'error' : 'textPrimary'}>
-            {info.getValue()}
-          </Typography>
-        ),
+        cell: (info) => {
+          const val = info.getValue();
+          return (
+            <Typography
+              variant="body2"
+              color={typeof val === "number" && val > 30 ? "error" : "textPrimary"}
+            >
+              {val ?? ""}
+            </Typography>
+          );
+        },
       },
       {
-        accessorKey: 'status',
-        header: 'Status',
+        accessorKey: "status",
+        header: "Status",
         cell: (info) => {
-          const status = info.getValue() as Person['status'];
+          const status = info.getValue();
+          if (!status) return null;
           return (
             <Chip
-              label={status}
-              size='small'
-              color={status === 'active' ? 'success' : status === 'inactive' ? 'error' : 'warning'}
-              variant='outlined'
+              label={status.toString()}
+              size="small"
+              color={
+                status === "active"
+                  ? "success"
+                  : status === "inactive"
+                    ? "error"
+                    : "warning"
+              }
+              variant="outlined"
             />
           );
         },
@@ -161,22 +177,28 @@ const TableDemoPage: React.FC = () => {
     [],
   );
 
+  const handleSaveRow = async (row: Person, values: any) => {
+    setData((prev) =>
+      prev.map((item) => (item.id === row.id ? { ...item, ...values } : item)),
+    );
+  };
+
   return (
     <Box sx={{ py: 2 }}>
       <Box sx={{ mb: 4 }}>
-        <Typography variant='h4' gutterBottom sx={{ fontWeight: 'bold' }}>
-          TanStack Table (MRT-Like)
+        <Typography variant="h4" gutterBottom sx={{ fontWeight: "bold" }}>
+          TanStack Table (Full Feature Demo)
         </Typography>
-        <Typography variant='body1' color='text.secondary'>
-          A high-performance table component built with TanStack Table and MUI, featuring density switching, column ordering, pinning, filtering, and
-          more.
+        <Typography variant="body1" color="text.secondary">
+          A high-performance table component with grouping, inline editing,
+          multi-format exports, and state persistence.
         </Typography>
       </Box>
 
       <MRTLikeTable
-        title='Employee Directory'
+        title="Employee Directory"
         columns={columns}
-        data={mockData}
+        data={data}
         enableGlobalFilter
         enableColumnFilters
         enableColumnOrdering
@@ -184,12 +206,37 @@ const TableDemoPage: React.FC = () => {
         enableDensity
         enableHiding
         enableFullScreen
-        storageKey='demo-table-state'
-        actionMode='menu'
+        enableGrouping
+        enableExpanding
+        enableRowNumbers
+        enableClickToCopy
+        enableEditing
+        onRowSave={handleSaveRow}
+        renderTopToolbarCustomActions={(table) => (
+          <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
+            <Chip
+              label={`Total: ${data.length}`}
+              variant="outlined"
+              size="small"
+            />
+            <Chip
+              label={`Selected: ${table.getSelectedRowModel().rows.length}`}
+              color="primary"
+              size="small"
+            />
+          </Box>
+        )}
+        renderBottomToolbarCustomActions={() => (
+          <Typography variant="caption" sx={{ fontStyle: "italic" }}>
+            Last updated: {new Date().toLocaleTimeString()}
+          </Typography>
+        )}
+        storageKey="demo-table-all-features-v3"
+        actionMode="menu"
         renderRowActionMenuItems={(row, close) => [
-          <Box key='actions' sx={{ py: 1 }}>
-            <Typography variant='caption' sx={{ px: 2, fontWeight: 'bold' }}>
-              Actions for {row.firstName}
+          <Box key="actions" sx={{ py: 1 }}>
+            <Typography variant="caption" sx={{ px: 2, fontWeight: "bold" }}>
+              Quick Actions
             </Typography>
             <Divider sx={{ my: 1 }} />
             <Box
@@ -197,34 +244,11 @@ const TableDemoPage: React.FC = () => {
               sx={{
                 px: 2,
                 py: 1,
-                cursor: 'pointer',
-                '&:hover': { bgcolor: 'action.hover' },
+                cursor: "pointer",
+                "&:hover": { bgcolor: "action.hover" },
               }}
             >
               View Profile
-            </Box>
-            <Box
-              onClick={close}
-              sx={{
-                px: 2,
-                py: 1,
-                cursor: 'pointer',
-                '&:hover': { bgcolor: 'action.hover' },
-              }}
-            >
-              Edit Employee
-            </Box>
-            <Box
-              onClick={close}
-              sx={{
-                px: 2,
-                py: 1,
-                cursor: 'pointer',
-                color: 'error.main',
-                '&:hover': { bgcolor: 'action.hover' },
-              }}
-            >
-              Delete
             </Box>
           </Box>,
         ]}

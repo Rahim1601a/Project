@@ -9,13 +9,17 @@ import {
   type SortingState,
   type VisibilityState,
   type RowSelectionState,
+  type GroupingState,
+  type ExpandedState,
   flexRender,
   getCoreRowModel,
   getFilteredRowModel,
   getPaginationRowModel,
   getSortedRowModel,
+  getGroupedRowModel,
+  getExpandedRowModel,
   useReactTable,
-} from '@tanstack/react-table';
+} from "@tanstack/react-table";
 
 import {
   Box,
@@ -57,7 +61,18 @@ import {
   FilterList,
   FilterListOff,
   Clear,
-} from '@mui/icons-material';
+  KeyboardArrowDown,
+  KeyboardArrowRight,
+  ContentCopy,
+  RestartAlt,
+  ViewModule,
+  Layers,
+  Edit,
+  Save,
+  Cancel,
+  PictureAsPdf,
+  TableRows,
+} from "@mui/icons-material";
 
 import { DndContext, PointerSensor, useSensor, useSensors, closestCenter, type DragEndEvent } from '@dnd-kit/core';
 
@@ -77,11 +92,21 @@ export type MRTLikeTableProps<T extends object> = {
   rowCount?: number;
 
   manualMode?: boolean;
-  fetchData?: (params: { pagination: PaginationState; sorting: SortingState; columnFilters: ColumnFiltersState; globalFilter: string }) => void;
+  fetchData?: (params: {
+    pagination: PaginationState;
+    sorting: SortingState;
+    columnFilters: ColumnFiltersState;
+    globalFilter: string;
+  }) => void;
 
-  actionMode?: 'none' | 'inline' | 'menu';
+  actionMode?: "none" | "inline" | "menu";
   renderRowActions?: (row: T) => React.ReactNode;
-  renderRowActionMenuItems?: (row: T, closeMenu: () => void) => React.ReactNode;
+  renderRowActionMenuItems?: (
+    row: T,
+    closeMenu: () => void,
+  ) => React.ReactNode;
+
+  onRowSave?: (row: T, values: Record<string, any>) => Promise<void> | void;
 
   enableGlobalFilter?: boolean;
   enableColumnFilters?: boolean;
@@ -90,6 +115,15 @@ export type MRTLikeTableProps<T extends object> = {
   enableDensity?: boolean;
   enableHiding?: boolean;
   enableFullScreen?: boolean;
+  enableGrouping?: boolean;
+  enableExpanding?: boolean;
+  enableClickToCopy?: boolean;
+  enableRowNumbers?: boolean;
+  enableEditing?: boolean;
+
+  renderTopToolbarCustomActions?: (table: any) => React.ReactNode;
+  renderBottomToolbarCustomActions?: (table: any) => React.ReactNode;
+
   storageKey?: string;
   title?: string;
 };
@@ -98,29 +132,103 @@ export type MRTLikeTableProps<T extends object> = {
    Helpers
 ========================================================= */
 
-function exportCSV<T extends object>(rows: T[], table: any, file = 'export.csv') {
-  if (!rows.length) return;
-
-  const visibleColumns = table.getVisibleLeafColumns().filter((c: any) => !c.id.startsWith('__'));
-  const headers = visibleColumns.map((c: any) => (typeof c.columnDef.header === 'string' ? c.columnDef.header : c.id || ''));
-
-  const csv = [
-    headers.join(','),
-    ...rows.map((row) =>
-      visibleColumns
+function exportCSV<T extends object>(
+  rows: T[],
+  table: any,
+  file = "export.csv",
+) {
+  const columns = table
+    .getAllColumns()
+    .filter((c: any) => c.id !== "__actions__" && c.id !== "__select__");
+  const header = columns.map((c: any) => (typeof c.columnDef.header === 'string' ? c.columnDef.header : c.id)).join(",");
+  const body = rows
+    .map((row) =>
+      columns
         .map((c: any) => {
-          const val = (row as any)[c.id] ?? '';
-          return JSON.stringify(val);
+          const val = (row as any)[c.id] ?? "";
+          return `"${val.toString().replace(/"/g, '""')}"`;
         })
-        .join(','),
-    ),
-  ].join('\n');
+        .join(","),
+    )
+    .join("\n");
+  const blob = new Blob([`${header}\n${body}`], {
+    type: "text/csv;charset=utf-8;",
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.setAttribute("href", url);
+  link.setAttribute("download", file);
+  link.style.visibility = "hidden";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
 
-  const blob = new Blob([csv], { type: 'text/csv' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = file;
-  a.click();
+function exportXLSX<T extends object>(
+  rows: T[],
+  table: any,
+  file = "export.xlsx",
+) {
+  const columns = table
+    .getAllColumns()
+    .filter((c: any) => c.id !== "__actions__" && c.id !== "__select__");
+  const header = columns.map((c: any) => (typeof c.columnDef.header === 'string' ? c.columnDef.header : c.id));
+
+  let xml = `<?xml version="1.0"?><?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet" xmlns:html="http://www.w3.org/TR/REC-html40">
+<Worksheet ss:Name="Sheet1"><Table>`;
+
+  xml += "<Row>";
+  header.forEach((h: string) => {
+    xml += `<Cell><Data ss:Type="String">${h}</Data></Cell>`;
+  });
+  xml += "</Row>";
+
+  rows.forEach((row) => {
+    xml += "<Row>";
+    columns.forEach((c: any) => {
+      const val = (row as any)[c.id] ?? "";
+      xml += `<Cell><Data ss:Type="String">${val}</Data></Cell>`;
+    });
+    xml += "</Row>";
+  });
+
+  xml += "</Table></Worksheet></Workbook>";
+
+  const blob = new Blob([xml], { type: "application/vnd.ms-excel" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.setAttribute("href", url);
+  link.setAttribute("download", file);
+  link.click();
+}
+
+function exportPDF<T extends object>(rows: T[], table: any, file = "export.pdf") {
+  const columns = table
+    .getAllColumns()
+    .filter((c: any) => c.id !== "__actions__" && c.id !== "__select__");
+  const header = columns.map((c: any) => (typeof c.columnDef.header === 'string' ? c.columnDef.header : c.id));
+  
+  const win = window.open("", "_blank");
+  if (win) {
+    win.document.write("<html><head><title>Export</title></head><body>");
+    win.document.write('<table border="1" style="border-collapse:collapse;width:100%">');
+    win.document.write("<thead><tr>");
+    header.forEach((h: string) =>
+      win.document.write(`<th>${h}</th>`),
+    );
+    win.document.write("</tr></thead><tbody>");
+    rows.forEach((row) => {
+      win.document.write("<tr>");
+      columns.forEach((c: any) =>
+        win.document.write(`<td>${(row as any)[c.id] ?? ""}</td>`),
+      );
+      win.document.write("</tr>");
+    });
+    win.document.write("</tbody></table></body></html>");
+    win.document.close();
+    win.print();
+  }
 }
 
 /* =========================================================
@@ -277,13 +385,103 @@ const ColumnFilter = memo(function ColumnFilter({ column }: { column: any }) {
 const MRTLikeTableCell = memo(function MRTLikeTableCell({
   cell,
   density,
-  isSelected, // Trigger re-render on selection
+  isSelected,
+  enableClickToCopy,
+  isEditing,
+  onEditChange,
+  editValue,
 }: {
   cell: any;
   density: string;
   isSelected?: boolean;
+  enableClickToCopy?: boolean;
+  isEditing?: boolean;
+  onEditChange?: (columnId: string, value: any) => void;
+  editValue?: any;
 }) {
   const isPinned = cell.column.getIsPinned();
+  const isGrouped = cell.getIsGrouped();
+  const isPlaceholder = cell.getIsPlaceholder();
+  const isAggregated = cell.getIsAggregated();
+
+  const handleCopy = (e: React.MouseEvent) => {
+    if (!enableClickToCopy || isEditing) return;
+    const text = cell.getValue()?.toString() || "";
+    navigator.clipboard.writeText(text);
+  };
+
+  const renderContent = () => {
+    const tableMeta = (cell.getContext().table.options as any).meta;
+    const editingRowId = tableMeta?.editingRowId;
+    const isRowEditing = editingRowId === cell.row.id;
+
+    if (
+      isRowEditing &&
+      !isGrouped &&
+      !isPlaceholder &&
+      !isAggregated &&
+      cell.column.columnDef.enableEditing !== false &&
+      !cell.column.id.startsWith("__")
+    ) {
+      const currentEditValue = tableMeta.editValues?.[cell.column.id];
+      return (
+        <TextField
+          variant="standard"
+          value={currentEditValue ?? cell.getValue() ?? ""}
+          onChange={(e) =>
+            tableMeta.setEditValues((prev: any) => ({
+              ...prev,
+              [cell.column.id]: e.target.value,
+            }))
+          }
+          fullWidth
+          size="small"
+        />
+      );
+    }
+
+    if (isGrouped) {
+      return (
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          <IconButton
+            size="small"
+            onClick={(e) => {
+              e.stopPropagation();
+              cell.row.getToggleExpandedHandler()();
+            }}
+            sx={{ p: 0 }}
+          >
+            {cell.row.getIsExpanded() ? (
+              <KeyboardArrowDown fontSize="small" />
+            ) : (
+              <KeyboardArrowRight fontSize="small" />
+            )}
+          </IconButton>
+          {flexRender(cell.column.columnDef.cell, cell.getContext())} (
+          {cell.row.subRows?.length ?? 0})
+        </Box>
+      );
+    }
+
+    if (isAggregated) {
+      return flexRender(
+        cell.column.columnDef.aggregatedCell ?? cell.column.columnDef.cell,
+        cell.getContext(),
+      );
+    }
+
+    if (isPlaceholder) return null;
+
+    return (
+      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+        {enableClickToCopy && (
+          <ContentCopy sx={{ fontSize: "0.8rem", opacity: 0.1 }} />
+        )}
+      </Box>
+    );
+  };
+
   return (
     <TableCell
       sx={{
@@ -294,9 +492,13 @@ const MRTLikeTableCell = memo(function MRTLikeTableCell({
         zIndex: isPinned ? 2 : 1,
         backgroundColor: isPinned ? "inherit" : "transparent",
         boxShadow: isPinned ? "2px 0 5px -2px rgba(0,0,0,0.05)" : "none",
+        cursor: enableClickToCopy && !isEditing ? "copy" : "default",
+        "&:hover":
+          enableClickToCopy && !isEditing ? { bgcolor: alpha("#000", 0.02) } : {},
       }}
+      onClick={handleCopy}
     >
-      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+      {renderContent()}
     </TableCell>
   );
 });
@@ -305,17 +507,27 @@ const MRTLikeTableRow = memo(function MRTLikeTableRow({
   row,
   density,
   columnVisibility,
-  isSelected, // Primitive prop to trigger re-render
+  isSelected,
+  enableClickToCopy,
+  editingRowId,
+  editValues,
+  onEditChange,
 }: {
   row: any;
   density: string;
   columnVisibility: VisibilityState;
   isSelected: boolean;
+  enableClickToCopy?: boolean;
+  editingRowId?: string | null;
+  editValues?: Record<string, any>;
+  onEditChange?: (columnId: string, value: any) => void;
 }) {
+  const isEditing = editingRowId === row.id;
+
   return (
     <TableRow
       hover
-      selected={isSelected}
+      selected={isSelected || isEditing}
       sx={{
         "&.Mui-selected": {
           backgroundColor: (theme) => alpha(theme.palette.primary.main, 0.08),
@@ -323,6 +535,8 @@ const MRTLikeTableRow = memo(function MRTLikeTableRow({
         "&.Mui-selected:hover": {
           backgroundColor: (theme) => alpha(theme.palette.primary.main, 0.12),
         },
+        height: row.getIsGrouped() ? 40 : "auto",
+        bgcolor: isEditing ? alpha("#000", 0.03) : row.getIsGrouped() ? alpha("#000", 0.02) : "transparent",
       }}
     >
       {row.getVisibleCells().map((cell: any) => (
@@ -331,6 +545,10 @@ const MRTLikeTableRow = memo(function MRTLikeTableRow({
           cell={cell}
           density={density}
           isSelected={isSelected}
+          enableClickToCopy={enableClickToCopy}
+          isEditing={isEditing}
+          onEditChange={onEditChange}
+          editValue={isEditing ? editValues?.[cell.column.id] : undefined}
         />
       ))}
     </TableRow>
@@ -342,6 +560,7 @@ const MRTLikeTableHeaderCell = memo(function MRTLikeTableHeaderCell({
   density,
   enableColumnOrdering,
   enableColumnPinning,
+  enableGrouping,
   showFilters,
   columnVisibility,
   isAllSelected, // Primitive to trigger re-render
@@ -351,6 +570,7 @@ const MRTLikeTableHeaderCell = memo(function MRTLikeTableHeaderCell({
   density: string;
   enableColumnOrdering: boolean;
   enableColumnPinning: boolean;
+  enableGrouping: boolean;
   showFilters: boolean;
   columnVisibility: VisibilityState;
   isAllSelected: boolean;
@@ -407,7 +627,22 @@ const MRTLikeTableHeaderCell = memo(function MRTLikeTableHeaderCell({
             </Box>
           )}
 
-          {enableColumnPinning && !header.column.id.startsWith('__') && (
+          {enableGrouping && header.column.getCanGroup() && (
+            <IconButton
+              size="small"
+              onClick={() => header.column.toggleGrouping()}
+              sx={{
+                ml: 0.5,
+                opacity: header.column.getIsGrouped() ? 1 : 0.3,
+                "&:hover": { opacity: 1 },
+                color: header.column.getIsGrouped() ? "primary.main" : "inherit",
+              }}
+            >
+              <ViewModule sx={{ fontSize: "0.9rem" }} />
+            </IconButton>
+          )}
+
+          {enableColumnPinning && !header.column.id.startsWith("__") && (
             <IconButton
               size='small'
               onClick={() => header.column.pin(header.column.getIsPinned() ? false : 'left')}
@@ -457,7 +692,15 @@ function MRTLikeTableInner<T extends object>({
   enableDensity = true,
   enableHiding = true,
   enableFullScreen = true,
-  storageKey = 'mrt-like-table',
+  enableGrouping = false,
+  enableExpanding = false,
+  enableClickToCopy = false,
+  enableRowNumbers = false,
+  enableEditing = false,
+  onRowSave,
+  renderTopToolbarCustomActions,
+  renderBottomToolbarCustomActions,
+  storageKey = "mrt-like-table",
   title,
 }: MRTLikeTableProps<T>) {
   /* ---------------- State ---------------- */
@@ -519,6 +762,19 @@ function MRTLikeTableInner<T extends object>({
     },
   );
 
+  const [grouping, setGrouping] = useState<GroupingState>(() => {
+    const raw = localStorage.getItem(storageKey);
+    if (raw) {
+      try {
+        const s = JSON.parse(raw);
+        if (s.grouping) return s.grouping;
+      } catch (e) {}
+    }
+    return [];
+  });
+
+  const [expanded, setExpanded] = useState<ExpandedState>({});
+
   const [columnOrder, setColumnOrder] = useState<ColumnOrderState>(() => {
     const raw = localStorage.getItem(storageKey);
     if (raw) {
@@ -557,9 +813,25 @@ function MRTLikeTableInner<T extends object>({
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
 
+  const [editingRowId, setEditingRowId] = useState<string | null>(null);
+  const [editValues, setEditValues] = useState<Record<string, any>>({});
+
   const containerRef = useRef<HTMLDivElement>(null);
 
   /* ---------------- Persistence ---------------- */
+
+  const resetState = useCallback(() => {
+    setPagination({ pageIndex: 0, pageSize: 10 });
+    setSorting([]);
+    setColumnFilters([]);
+    setGlobalFilter("");
+    setColumnVisibility({});
+    setColumnOrder([]);
+    setColumnPinning({ left: ["__select__", "__actions__"], right: [] });
+    setGrouping([]);
+    setDensity("small");
+    localStorage.removeItem(storageKey);
+  }, [storageKey]);
 
   useEffect(() => {
     localStorage.setItem(
@@ -573,6 +845,7 @@ function MRTLikeTableInner<T extends object>({
         columnOrder,
         columnPinning,
         density,
+        grouping,
       }),
     );
   }, [
@@ -585,6 +858,7 @@ function MRTLikeTableInner<T extends object>({
     columnOrder,
     columnPinning,
     density,
+    grouping,
   ]);
 
   /* ---------------- Server Fetch ---------------- */
@@ -598,6 +872,19 @@ function MRTLikeTableInner<T extends object>({
 
   const finalColumns = useMemo<ColumnDef<T, unknown>[]>(() => {
     const cols: ColumnDef<T, unknown>[] = [];
+
+    // Row Numbers
+    if (enableRowNumbers) {
+      cols.push({
+        id: "__row_numbers__",
+        header: "#",
+        size: 50,
+        enableSorting: false,
+        enableColumnFilter: false,
+        enableHiding: false,
+        cell: ({ row }) => row.index + 1,
+      });
+    }
 
     // Selection Column
     cols.push({
@@ -629,16 +916,76 @@ function MRTLikeTableInner<T extends object>({
     });
 
     // Actions Column
-    if (actionMode !== 'none') {
+    if (actionMode !== "none") {
       cols.push({
-        id: '__actions__',
-        header: 'Actions',
-        size: 80,
+        id: "__actions__",
+        header: "Actions",
+        size: 120,
         enableSorting: false,
         enableColumnFilter: false,
         enableHiding: false,
-        cell: ({ row }) =>
-          actionMode === 'inline' ? renderRowActions?.(row.original) : <RowActionMenu row={row.original} render={renderRowActionMenuItems} />,
+        cell: ({ row, table: t }) => {
+          const meta = (t.options as any).meta;
+          const isEditing = meta.editingRowId === row.id;
+
+          if (isEditing) {
+            return (
+              <Box sx={{ display: "flex", gap: 0.5 }}>
+                <Tooltip title="Save">
+                  <IconButton
+                    size="small"
+                    color="primary"
+                    onClick={async () => {
+                      await meta.onRowSave?.(row.original, meta.editValues);
+                      meta.setEditingRowId(null);
+                      meta.setEditValues({});
+                    }}
+                  >
+                    <Save fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title="Cancel">
+                  <IconButton
+                    size="small"
+                    color="error"
+                    onClick={() => {
+                      meta.setEditingRowId(null);
+                      meta.setEditValues({});
+                    }}
+                  >
+                    <Cancel fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              </Box>
+            );
+          }
+
+          return (
+            <Box sx={{ display: "flex", gap: 0.5 }}>
+              {meta.enableEditing && (
+                <Tooltip title="Edit">
+                  <IconButton
+                    size="small"
+                    onClick={() => {
+                      meta.setEditingRowId(row.id);
+                      meta.setEditValues(row.original);
+                    }}
+                  >
+                    <Edit fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              )}
+              {actionMode === "inline" ? (
+                renderRowActions?.(row.original)
+              ) : (
+                <RowActionMenu
+                  row={row.original}
+                  render={renderRowActionMenuItems}
+                />
+              )}
+            </Box>
+          );
+        },
       });
     }
 
@@ -660,8 +1007,11 @@ function MRTLikeTableInner<T extends object>({
       columnOrder,
       columnPinning,
       rowSelection,
+      grouping,
+      expanded,
     },
     enableRowSelection: true,
+    enableGrouping: true,
     manualPagination: manualMode,
     manualSorting: manualMode,
     manualFiltering: manualMode,
@@ -674,11 +1024,23 @@ function MRTLikeTableInner<T extends object>({
     onColumnOrderChange: setColumnOrder,
     onColumnPinningChange: setColumnPinning,
     onRowSelectionChange: setRowSelection,
-    columnResizeMode: 'onChange',
+    onGroupingChange: setGrouping,
+    onExpandedChange: setExpanded,
+    columnResizeMode: "onChange",
+    meta: {
+      editingRowId,
+      setEditingRowId,
+      editValues,
+      setEditValues,
+      onRowSave,
+      enableEditing,
+    },
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
+    getGroupedRowModel: getGroupedRowModel(),
+    getExpandedRowModel: getExpandedRowModel(),
   });
 
   /* ---------------- Handlers ---------------- */
@@ -750,6 +1112,58 @@ function MRTLikeTableInner<T extends object>({
       >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           {title && <Typography variant='h6'>{title}</Typography>}
+          {renderTopToolbarCustomActions?.(table)}
+
+          <Box sx={{ flexGrow: 1 }} />
+
+          <Tooltip title="Export CSV">
+            <IconButton
+              size="small"
+              onClick={() =>
+                exportCSV(
+                  table.getFilteredRowModel().rows.map((r: any) => r.original),
+                  table,
+                )
+              }
+            >
+              <Download />
+            </IconButton>
+          </Tooltip>
+
+          <Tooltip title="Export Excel">
+            <IconButton
+              size="small"
+              onClick={() =>
+                exportXLSX(
+                  table.getFilteredRowModel().rows.map((r: any) => r.original),
+                  table,
+                )
+              }
+            >
+              <TableRows />
+            </IconButton>
+          </Tooltip>
+
+          <Tooltip title="Export PDF">
+            <IconButton
+              size="small"
+              onClick={() =>
+                exportPDF(
+                  table.getFilteredRowModel().rows.map((r: any) => r.original),
+                  table,
+                )
+              }
+            >
+              <PictureAsPdf />
+            </IconButton>
+          </Tooltip>
+
+          <Tooltip title="Reset State">
+            <IconButton onClick={resetState} size="small">
+              <RestartAlt />
+            </IconButton>
+          </Tooltip>
+
           {enableGlobalFilter && (
             <TextField
               size='small'
@@ -901,6 +1315,7 @@ function MRTLikeTableInner<T extends object>({
                         density={density}
                         enableColumnOrdering={enableColumnOrdering}
                         enableColumnPinning={enableColumnPinning}
+                        enableGrouping={enableGrouping}
                         showFilters={showFilters}
                         columnVisibility={columnVisibility}
                         isAllSelected={table.getIsAllRowsSelected()}
@@ -940,6 +1355,12 @@ function MRTLikeTableInner<T extends object>({
                         density={density}
                         columnVisibility={columnVisibility}
                         isSelected={row.getIsSelected()}
+                        enableClickToCopy={enableClickToCopy}
+                        editingRowId={editingRowId}
+                        editValues={editValues}
+                        onEditChange={(col, val) =>
+                          setEditValues((prev) => ({ ...prev, [col]: val }))
+                        }
                       />
                     ))
                 )}
@@ -960,9 +1381,13 @@ function MRTLikeTableInner<T extends object>({
           px: 2,
         }}
       >
-        <Typography variant='caption' color='text.secondary'>
-          {table.getSelectedRowModel().rows.length} of {table.getFilteredRowModel().rows.length} row(s) selected
+        <Typography variant="caption" color="text.secondary">
+          {table.getSelectedRowModel().rows.length} of{" "}
+          {table.getFilteredRowModel().rows.length} row(s) selected
         </Typography>
+
+        {renderBottomToolbarCustomActions?.(table)}
+
         <TablePagination
           component='div'
           count={manualMode ? rowCount : table.getFilteredRowModel().rows.length}
