@@ -1,15 +1,12 @@
-import React, { memo, useEffect, useMemo, useState, useRef, useCallback } from 'react';
+import React, { memo, useEffect, useMemo, useState, useRef } from 'react';
 
 import {
   type ColumnDef,
   type ColumnFiltersState,
-  type ColumnOrderState,
-  type ColumnPinningState,
   type PaginationState,
   type SortingState,
   type VisibilityState,
   type RowSelectionState,
-  type GroupingState,
   type ExpandedState,
   flexRender,
   getCoreRowModel,
@@ -33,13 +30,7 @@ import {
   Menu,
   MenuItem,
   Paper,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
   TablePagination,
-  TableRow,
   TextField,
   Tooltip,
   Typography,
@@ -470,12 +461,8 @@ const ColumnFilter = React.memo(function ColumnFilter({ column }: { column: any 
 const MRTLikeTableCell = memo(function MRTLikeTableCell({
   cell,
   density,
-  isSelected,
   enableClickToCopy,
   isEditing,
-  onEditChange,
-  editValue,
-  columnSizing, // Added to trigger re-render on resize
 }: {
   cell: any;
   density: string;
@@ -491,7 +478,7 @@ const MRTLikeTableCell = memo(function MRTLikeTableCell({
   const isPlaceholder = cell.getIsPlaceholder();
   const isAggregated = cell.getIsAggregated();
 
-  const handleCopy = (e: React.MouseEvent) => {
+  const handleCopy = () => {
     if (!enableClickToCopy || isEditing) return;
     const text = cell.getValue()?.toString() || '';
     navigator.clipboard.writeText(text);
@@ -622,14 +609,13 @@ const MRTLikeTableCell = memo(function MRTLikeTableCell({
 const MRTLikeTableRow = memo(function MRTLikeTableRow({
   row,
   density,
-  columnVisibility,
   isSelected,
   enableClickToCopy,
   editingRowId,
   editValues,
   onEditChange,
   style,
-  columnSizing, // Added to trigger re-render on resize
+  columnSizing, // Used to trigger re-render
 }: {
   row: any;
   density: string;
@@ -683,10 +669,6 @@ const MRTLikeTableHeaderCell = memo(function MRTLikeTableHeaderCell({
   enableColumnPinning,
   enableGrouping,
   showFilters,
-  columnVisibility,
-  isAllSelected,
-  isSomeSelected,
-  columnSizing,
 }: {
   header: any;
   density: string;
@@ -828,11 +810,9 @@ function MRTLikeTableInner<T extends object>({
   enableColumnFilters = true,
   enableColumnOrdering = true,
   enableColumnPinning = true,
-  enableDensity = true,
   enableHiding = true,
   enableFullScreen = true,
   enableGrouping = false,
-  enableExpanding = false,
   enableClickToCopy = false,
   enableRowNumbers = false,
   enableEditing = false,
