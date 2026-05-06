@@ -212,6 +212,14 @@ const TableDemoPage: React.FC = () => {
         enableClickToCopy
         enableEditing
         onRowSave={handleSaveRow}
+        renderDetailPanel={({ row }) => (
+          <Box sx={{ p: 2, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
+            <Typography variant="body2"><strong>Full Name:</strong> {row.firstName} {row.lastName}</Typography>
+            <Typography variant="body2"><strong>Department:</strong> Engineering</Typography>
+            <Typography variant="body2"><strong>Hire Date:</strong> {new Date().toLocaleDateString()}</Typography>
+            <Typography variant="body2"><strong>Internal ID:</strong> UUID-{row.id}-89XY</Typography>
+          </Box>
+        )}
         renderTopToolbarCustomActions={(table) => (
           <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
             <Chip

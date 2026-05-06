@@ -109,6 +109,8 @@ export type MRTLikeTableProps<T extends object> = {
   enableRowNumbers?: boolean;
   enableEditing?: boolean;
 
+  renderDetailPanel?: (props: { row: T }) => React.ReactNode;
+
   renderTopToolbarCustomActions?: (table: any) => React.ReactNode;
   renderBottomToolbarCustomActions?: (table: any) => React.ReactNode;
 
@@ -606,61 +608,78 @@ const MRTLikeTableCell = memo(function MRTLikeTableCell({
   );
 });
 
-const MRTLikeTableRow = memo(function MRTLikeTableRow({
-  row,
-  density,
-  isSelected,
-  enableClickToCopy,
-  editingRowId,
-  editValues,
-  onEditChange,
-  style,
-  columnSizing, // Used to trigger re-render
-}: {
-  row: any;
-  density: string;
-  columnVisibility: VisibilityState;
-  isSelected: boolean;
-  enableClickToCopy?: boolean;
-  editingRowId?: string | null;
-  editValues?: Record<string, any>;
-  onEditChange?: (columnId: string, value: any) => void;
-  style?: React.CSSProperties;
-  columnSizing?: any;
-}) {
-  const isEditing = editingRowId === row.id;
+const MRTLikeTableRow = memo(
+  React.forwardRef(function MRTLikeTableRow(
+    {
+      row,
+      density,
+      isSelected,
+      enableClickToCopy,
+      editingRowId,
+      editValues,
+      onEditChange,
+      style,
+      columnSizing, // Used to trigger re-render
+      renderDetailPanel,
+      virtualIndex,
+    }: {
+      row: any;
+      density: string;
+      isSelected: boolean;
+      enableClickToCopy?: boolean;
+      editingRowId?: string | null;
+      editValues?: Record<string, any>;
+      onEditChange?: (columnId: string, value: any) => void;
+      style?: React.CSSProperties;
+      columnSizing?: any;
+      renderDetailPanel?: (props: { row: any }) => React.ReactNode;
+      virtualIndex: number;
+    },
+    ref: any,
+  ) {
+    const isEditing = editingRowId === row.id;
 
-  return (
-    <Box
-      role='row'
-      style={style}
-      sx={{
-        display: 'flex',
-        width: 'max-content',
-        minWidth: '100%',
-        bgcolor: isEditing ? alpha('#000', 0.03) : row.getIsGrouped() ? alpha('#000', 0.02) : 'transparent',
-        '&:hover': {
-          bgcolor: (theme) => alpha(theme.palette.primary.main, 0.04),
-        },
-        boxSizing: 'border-box',
-      }}
-    >
-      {row.getVisibleCells().map((cell: any) => (
-        <MRTLikeTableCell
-          key={cell.id}
-          cell={cell}
-          density={density}
-          isSelected={isSelected}
-          enableClickToCopy={enableClickToCopy}
-          isEditing={isEditing}
-          onEditChange={onEditChange}
-          editValue={isEditing ? editValues?.[cell.column.id] : undefined}
-          columnSizing={columnSizing}
-        />
-      ))}
-    </Box>
-  );
-});
+    return (
+      <Box
+        ref={ref}
+        data-index={virtualIndex}
+        role='row'
+        style={style}
+        sx={{
+          display: 'flex',
+          flexDirection: 'column',
+          width: 'max-content',
+          minWidth: '100%',
+          bgcolor: isEditing ? alpha('#000', 0.03) : row.getIsGrouped() ? alpha('#000', 0.02) : 'transparent',
+          '&:hover': {
+            bgcolor: (theme) => alpha(theme.palette.primary.main, 0.04),
+          },
+          boxSizing: 'border-box',
+        }}
+      >
+        <Box sx={{ display: 'flex', width: 'max-content', minWidth: '100%' }}>
+          {row.getVisibleCells().map((cell: any) => (
+            <MRTLikeTableCell
+              key={cell.id}
+              cell={cell}
+              density={density}
+              enableClickToCopy={enableClickToCopy}
+              isEditing={isEditing}
+              editValue={isEditing ? editValues?.[cell.column.id] : undefined}
+            />
+          ))}
+        </Box>
+
+        {/* Detail Panel */}
+        {renderDetailPanel && row.getIsExpanded() && (
+          <Box sx={{ width: '100%', p: 2, borderBottom: '1px solid', borderColor: 'divider', bgcolor: alpha('#000', 0.01) }}>
+            {renderDetailPanel({ row: row.original })}
+          </Box>
+        )}
+      </Box>
+    );
+  }),
+);
 
 const MRTLikeTableHeaderCell = memo(function MRTLikeTableHeaderCell({
   header,
@@ -815,7 +834,9 @@ function MRTLikeTableInner<T extends object>({
   enableGrouping = false,
   enableClickToCopy = false,
   enableRowNumbers = false,
+  enableExpanding = false,
   enableEditing = false,
+  renderDetailPanel,
   onRowSave,
   renderTopToolbarCustomActions,
   renderBottomToolbarCustomActions,
@@ -883,6 +904,27 @@ function MRTLikeTableInner<T extends object>({
         enableColumnFilter: false,
         enableHiding: false,
         cell: ({ row }) => row.index + 1,
+      });
+    }
+
+    // Detail Panel / Expand Column
+    if (renderDetailPanel || enableExpanding) {
+      cols.push({
+        id: '__expand__',
+        header: '',
+        size: 50,
+        enableSorting: false,
+        enableColumnFilter: false,
+        enableHiding: false,
+        cell: ({ row }) => (
+          <IconButton
+            size='small'
+            onClick={row.getToggleExpandedHandler()}
+            sx={{ transform: row.getIsExpanded() ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}
+          >
+            <KeyboardArrowDown fontSize='small' />
+          </IconButton>
+        ),
       });
     }
 
@@ -988,7 +1030,7 @@ function MRTLikeTableInner<T extends object>({
 
     cols.push(...columns);
     return cols;
-  }, [columns, actionMode, renderRowActions, renderRowActionMenuItems, enableRowNumbers]);
+  }, [columns, actionMode, renderRowActions, renderRowActionMenuItems, enableRowNumbers, renderDetailPanel, enableExpanding]);
 
   /* ---------------- Table Instance ---------------- */
 
@@ -1015,6 +1057,7 @@ function MRTLikeTableInner<T extends object>({
       filterFn: 'includesString', // Default to string includes to avoid TanStack auto-guessing wrong types
     },
     enableRowSelection: (row) => !row.getIsGrouped(),
+    getRowCanExpand: renderDetailPanel ? () => true : undefined,
 
     enableGrouping: true,
     manualPagination: manualMode,
@@ -1412,21 +1455,22 @@ function MRTLikeTableInner<T extends object>({
                   return (
                     <MRTLikeTableRow
                       key={row.id}
+                      ref={rowVirtualizer.measureElement}
+                      virtualIndex={virtualRow.index}
                       row={row}
                       density={density}
-                      columnVisibility={columnVisibility}
                       isSelected={row.getIsSelected()}
                       enableClickToCopy={enableClickToCopy}
                       editingRowId={editingRowId}
                       editValues={editValues}
                       onEditChange={(col, val) => setEditValues((prev) => ({ ...prev, [col]: val }))}
                       columnSizing={table.getState().columnSizing}
+                      renderDetailPanel={renderDetailPanel}
                       style={{
                         position: 'absolute',
                         top: 0,
                         left: 0,
                         width: '100%',
-                        height: `${virtualRow.size}px`,
                         transform: `translateY(${virtualRow.start}px)`,
                       }}
                     />
