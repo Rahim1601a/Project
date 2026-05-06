@@ -21,6 +21,10 @@ import {
   useReactTable,
 } from '@tanstack/react-table';
 
+import { useVirtualizer } from '@tanstack/react-virtual';
+import { jsPDF } from 'jspdf';
+import { autoTable } from 'jspdf-autotable';
+
 import {
   Box,
   Checkbox,
@@ -79,6 +83,8 @@ import { SortableContext, horizontalListSortingStrategy, useSortable, arrayMove 
 
 import { CSS } from '@dnd-kit/utilities';
 
+import { useTableState } from '../hooks/useTableState';
+
 /* =========================================================
    Types
 ========================================================= */
@@ -120,7 +126,7 @@ export type MRTLikeTableProps<T extends object> = {
 
   /* -------- NEW (Additive) -------- */
 
-  validateRow?: (values: Record<string, any>, row: T) => MRTValidationErrors<T>;
+  validateRow?: (values: Record<string, any>, row: T) => MRTValidationErrors<T> | Promise<MRTValidationErrors<T>>;
 
   onExport?: (params: {
     type: 'csv' | 'xlsx' | 'pdf';
@@ -147,7 +153,7 @@ export type MRTLikeTableMeta<T extends object> = {
   rowErrors?: MRTValidationErrors<T>;
   setRowErrors?: React.Dispatch<React.SetStateAction<MRTValidationErrors<T>>>;
 
-  validateRow?: (values: Record<string, any>, row: T) => MRTValidationErrors<T>;
+  validateRow?: (values: Record<string, any>, row: T) => MRTValidationErrors<T> | Promise<MRTValidationErrors<T>>;
 };
 
 /* =========================================================
@@ -215,24 +221,17 @@ function exportXLSX<T extends object>(rows: T[], table: any, file = 'export.xlsx
 
 function exportPDF<T extends object>(rows: T[], table: any, file = 'export.pdf') {
   const columns = table.getAllColumns().filter((c: any) => c.id !== '__actions__' && c.id !== '__select__');
-  const header = columns.map((c: any) => (typeof c.columnDef.header === 'string' ? c.columnDef.header : c.id));
+  const headers = columns.map((c: any) => (typeof c.columnDef.header === 'string' ? c.columnDef.header : c.id));
+  const body = rows.map((row) => columns.map((c: any) => (row as any)[c.id] ?? ''));
 
-  const win = window.open('', '_blank');
-  if (win) {
-    win.document.write('<html><head><title>Export</title></head><body>');
-    win.document.write('<table border="1" style="border-collapse:collapse;width:100%">');
-    win.document.write('<thead><tr>');
-    header.forEach((h: string) => win.document.write(`<th>${h}</th>`));
-    win.document.write('</tr></thead><tbody>');
-    rows.forEach((row) => {
-      win.document.write('<tr>');
-      columns.forEach((c: any) => win.document.write(`<td>${(row as any)[c.id] ?? ''}</td>`));
-      win.document.write('</tr>');
-    });
-    win.document.write('</tbody></table></body></html>');
-    win.document.close();
-    win.print();
-  }
+  const doc = new jsPDF();
+  autoTable(doc, {
+    head: [headers],
+    body: body,
+    styles: { fontSize: 8 },
+    headStyles: { fillColor: [25, 118, 210] }, // Primary color
+  });
+  doc.save(file);
 }
 
 /* =========================================================
@@ -356,7 +355,33 @@ const ColumnFilter = React.memo(function ColumnFilter({ column }: { column: any 
   if (!column.getCanFilter()) return null;
 
   const variant = column.columnDef.filterVariant ?? 'text';
-  const value = column.getFilterValue();
+  const columnFilterValue = column.getFilterValue();
+
+  // Local state for debouncing input to prevent lag and focus loss
+  const [localValue, setLocalValue] = React.useState(columnFilterValue);
+  const lastPushedValue = React.useRef(columnFilterValue);
+
+  // Sync external changes (e.g., clearing filters globally) to local state
+  React.useEffect(() => {
+    // Only sync if the incoming value is different from what we last pushed.
+    // This prevents overwriting the user's current typing if a debounce just fired.
+    if (JSON.stringify(columnFilterValue) !== JSON.stringify(lastPushedValue.current)) {
+      setLocalValue(columnFilterValue);
+      lastPushedValue.current = columnFilterValue;
+    }
+  }, [columnFilterValue]);
+
+  // Debounce effect to apply filter after user stops typing
+  React.useEffect(() => {
+    const timeout = setTimeout(() => {
+      // Only set if different to prevent unnecessary re-renders
+      if (JSON.stringify(localValue) !== JSON.stringify(columnFilterValue)) {
+        lastPushedValue.current = localValue;
+        column.setFilterValue(localValue);
+      }
+    }, 300);
+    return () => clearTimeout(timeout);
+  }, [localValue, columnFilterValue, column]);
 
   // TEXT FILTER (MRT default)
   if (variant === 'text') {
@@ -364,9 +389,10 @@ const ColumnFilter = React.memo(function ColumnFilter({ column }: { column: any 
       <TextField
         size='small'
         variant='outlined'
-        value={value ?? ''}
+        value={(localValue as string) ?? ''}
         placeholder='Filter…'
-        onChange={(e) => column.setFilterValue(e.target.value || undefined)}
+        onChange={(e) => setLocalValue(e.target.value || undefined)}
+        sx={{ width: '100%' }}
         slotProps={{
           input: {
             sx: { fontSize: '0.75rem', mt: 0.5 },
@@ -375,9 +401,9 @@ const ColumnFilter = React.memo(function ColumnFilter({ column }: { column: any 
                 <Search sx={{ fontSize: '0.9rem', opacity: 0.5 }} />
               </InputAdornment>
             ),
-            endAdornment: value ? (
+            endAdornment: localValue ? (
               <InputAdornment position='end'>
-                <IconButton size='small' onClick={() => column.setFilterValue(undefined)}>
+                <IconButton size='small' onClick={() => setLocalValue(undefined)}>
                   <Clear fontSize='small' />
                 </IconButton>
               </InputAdornment>
@@ -391,7 +417,13 @@ const ColumnFilter = React.memo(function ColumnFilter({ column }: { column: any 
   // SELECT FILTER
   if (variant === 'select') {
     return (
-      <TextField select size='small' value={value ?? ''} onChange={(e) => column.setFilterValue(e.target.value || undefined)} sx={{ mt: 0.5 }}>
+      <TextField
+        select
+        size='small'
+        value={(localValue as string) ?? ''}
+        onChange={(e) => setLocalValue(e.target.value || undefined)}
+        sx={{ mt: 0.5, width: '100%' }}
+      >
         <MenuItem value=''>All</MenuItem>
         {column.columnDef.filterSelectOptions?.map((opt: string) => (
           <MenuItem key={opt} value={opt}>
@@ -404,23 +436,25 @@ const ColumnFilter = React.memo(function ColumnFilter({ column }: { column: any 
 
   // RANGE FILTER (NUMBER / DATE)
   if (variant === 'range') {
-    const [min, max] = value ?? [];
+    const [min, max] = (localValue as [any, any]) ?? [];
 
     return (
-      <Box sx={{ display: 'flex', gap: 0.5, mt: 0.5 }}>
+      <Box sx={{ display: 'flex', gap: 0.5, mt: 0.5, width: '100%' }}>
         <TextField
           size='small'
           placeholder='Min'
           type='number'
           value={min ?? ''}
-          onChange={(e) => column.setFilterValue([e.target.value || undefined, max])}
+          onChange={(e) => setLocalValue([e.target.value || undefined, max])}
+          sx={{ width: '50%' }}
         />
         <TextField
           size='small'
           placeholder='Max'
           type='number'
           value={max ?? ''}
-          onChange={(e) => column.setFilterValue([min, e.target.value || undefined])}
+          onChange={(e) => setLocalValue([min, e.target.value || undefined])}
+          sx={{ width: '50%' }}
         />
       </Box>
     );
@@ -441,6 +475,7 @@ const MRTLikeTableCell = memo(function MRTLikeTableCell({
   isEditing,
   onEditChange,
   editValue,
+  columnSizing, // Added to trigger re-render on resize
 }: {
   cell: any;
   density: string;
@@ -449,6 +484,7 @@ const MRTLikeTableCell = memo(function MRTLikeTableCell({
   isEditing?: boolean;
   onEditChange?: (columnId: string, value: any) => void;
   editValue?: any;
+  columnSizing?: any;
 }) {
   const isPinned = cell.column.getIsPinned();
   const isGrouped = cell.getIsGrouped();
@@ -495,14 +531,20 @@ const MRTLikeTableCell = memo(function MRTLikeTableCell({
               tableMeta.setRowErrors?.(null);
             }
             if (e.key === 'Enter') {
-              const errors = tableMeta.validateRow?.(tableMeta.editValues, cell.row.original);
+              const validateAndSave = async () => {
+                const errors = await tableMeta.validateRow?.(tableMeta.editValues, cell.row.original);
 
-              if (errors) {
-                tableMeta.setRowErrors?.(errors);
-                return;
-              }
+                if (errors && Object.keys(errors).length > 0) {
+                  tableMeta.setRowErrors?.(errors);
+                  return;
+                }
 
-              tableMeta.onRowSave?.(cell.row.original, tableMeta.editValues);
+                await tableMeta.onRowSave?.(cell.row.original, tableMeta.editValues);
+                tableMeta.setEditingRowId(null);
+                tableMeta.setEditValues({});
+                tableMeta.setRowErrors?.(null);
+              };
+              validateAndSave();
             }
           }}
           fullWidth
@@ -544,22 +586,36 @@ const MRTLikeTableCell = memo(function MRTLikeTableCell({
   };
 
   return (
-    <TableCell
-      sx={{
-        p: density === 'small' ? 0.5 : 1.5,
+    <Box
+      role='cell'
+      style={{
+        width: cell.column.getSize(),
+        minWidth: cell.column.getSize(),
+        maxWidth: cell.column.getSize(),
         position: isPinned ? 'sticky' : 'relative',
         left: isPinned === 'left' ? cell.column.getStart('left') : undefined,
         right: isPinned === 'right' ? cell.column.getAfter('right') : undefined,
+      }}
+      sx={{
+        p: density === 'small' ? '4px 8px' : density === 'medium' ? '8px 12px' : '12px 16px',
         zIndex: isPinned ? 2 : 1,
-        backgroundColor: isPinned ? 'inherit' : 'transparent',
-        boxShadow: isPinned ? '2px 0 5px -2px rgba(0,0,0,0.05)' : 'none',
+        backgroundColor: isPinned ? 'background.paper' : 'inherit',
+        borderBottom: '1px solid',
+        borderColor: 'divider',
+        display: 'flex',
+        alignItems: 'center',
+        flex: '0 0 auto',
+        boxSizing: 'border-box',
+        overflow: 'hidden',
+        height: '100%',
         cursor: enableClickToCopy && !isEditing ? 'copy' : 'default',
+
         '&:hover': enableClickToCopy && !isEditing ? { bgcolor: alpha('#000', 0.02) } : {},
       }}
       onClick={handleCopy}
     >
       {renderContent()}
-    </TableCell>
+    </Box>
   );
 });
 
@@ -572,6 +628,8 @@ const MRTLikeTableRow = memo(function MRTLikeTableRow({
   editingRowId,
   editValues,
   onEditChange,
+  style,
+  columnSizing, // Added to trigger re-render on resize
 }: {
   row: any;
   density: string;
@@ -581,22 +639,24 @@ const MRTLikeTableRow = memo(function MRTLikeTableRow({
   editingRowId?: string | null;
   editValues?: Record<string, any>;
   onEditChange?: (columnId: string, value: any) => void;
+  style?: React.CSSProperties;
+  columnSizing?: any;
 }) {
   const isEditing = editingRowId === row.id;
 
   return (
-    <TableRow
-      hover
-      selected={isSelected || isEditing}
+    <Box
+      role='row'
+      style={style}
       sx={{
-        '&.Mui-selected': {
-          backgroundColor: (theme) => alpha(theme.palette.primary.main, 0.08),
-        },
-        '&.Mui-selected:hover': {
-          backgroundColor: (theme) => alpha(theme.palette.primary.main, 0.12),
-        },
-        height: row.getIsGrouped() ? 40 : 'auto',
+        display: 'flex',
+        width: 'max-content',
+        minWidth: '100%',
         bgcolor: isEditing ? alpha('#000', 0.03) : row.getIsGrouped() ? alpha('#000', 0.02) : 'transparent',
+        '&:hover': {
+          bgcolor: (theme) => alpha(theme.palette.primary.main, 0.04),
+        },
+        boxSizing: 'border-box',
       }}
     >
       {row.getVisibleCells().map((cell: any) => (
@@ -609,9 +669,10 @@ const MRTLikeTableRow = memo(function MRTLikeTableRow({
           isEditing={isEditing}
           onEditChange={onEditChange}
           editValue={isEditing ? editValues?.[cell.column.id] : undefined}
+          columnSizing={columnSizing}
         />
       ))}
-    </TableRow>
+    </Box>
   );
 });
 
@@ -623,8 +684,9 @@ const MRTLikeTableHeaderCell = memo(function MRTLikeTableHeaderCell({
   enableGrouping,
   showFilters,
   columnVisibility,
-  isAllSelected, // Primitive to trigger re-render
-  isSomeSelected, // Primitive to trigger re-render
+  isAllSelected,
+  isSomeSelected,
+  columnSizing,
 }: {
   header: any;
   density: string;
@@ -635,6 +697,7 @@ const MRTLikeTableHeaderCell = memo(function MRTLikeTableHeaderCell({
   columnVisibility: VisibilityState;
   isAllSelected: boolean;
   isSomeSelected: boolean;
+  columnSizing: any;
 }) {
   const isPinned = header.column.getIsPinned();
   const style: React.CSSProperties = {
@@ -643,13 +706,29 @@ const MRTLikeTableHeaderCell = memo(function MRTLikeTableHeaderCell({
     left: isPinned === 'left' ? header.column.getStart('left') : undefined,
     right: isPinned === 'right' ? header.column.getAfter('right') : undefined,
     zIndex: isPinned ? 3 : 1,
-    backgroundColor: alpha('#fff', 0.95),
-    backdropFilter: 'blur(4px)',
-    boxShadow: isPinned ? '2px 0 5px -2px rgba(0,0,0,0.1)' : 'none',
+    minWidth: header.getSize(),
+    maxWidth: header.getSize(),
   };
 
   return (
-    <TableCell key={header.id} style={style} sx={{ p: density === 'small' ? 0.5 : 1 }}>
+    <Box
+      role='columnheader'
+      style={style}
+      sx={{
+        p: density === 'small' ? '4px 8px' : density === 'medium' ? '8px 12px' : '12px 16px',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        flex: '0 0 auto',
+        boxSizing: 'border-box',
+        overflow: 'hidden',
+        borderBottom: '2px solid',
+        borderColor: 'divider',
+        fontWeight: 'bold',
+
+        bgcolor: 'background.paper',
+      }}
+    >
       <Box sx={{ display: 'flex', flexDirection: 'column' }}>
         <Box
           sx={{
@@ -725,7 +804,7 @@ const MRTLikeTableHeaderCell = memo(function MRTLikeTableHeaderCell({
         {showFilters && header.column.getCanFilter() && <ColumnFilter column={header.column} />}
       </Box>
       <ResizeHandle header={header} />
-    </TableCell>
+    </Box>
   );
 });
 
@@ -762,181 +841,52 @@ function MRTLikeTableInner<T extends object>({
   renderBottomToolbarCustomActions,
   storageKey = 'mrt-like-table',
   title,
-  validateRow, // ✅ ADD THIS
+  validateRow,
   onExport,
 }: MRTLikeTableProps<T>) {
-  /* ---------------- State ---------------- */
+  /* ---------------- State (Centralized) ---------------- */
 
-  const [pagination, setPagination] = useState<PaginationState>(() => {
-    const raw = localStorage.getItem(storageKey);
-    if (raw) {
-      try {
-        const s = JSON.parse(raw);
-        if (s.pagination) return s.pagination;
-      } catch (e) {
-        console.error('Failed to parse column filters from localStorage', e);
-      }
-    }
-    return { pageIndex: 0, pageSize: 10 };
-  });
-
-  const [sorting, setSorting] = useState<SortingState>(() => {
-    const raw = localStorage.getItem(storageKey);
-    if (raw) {
-      try {
-        const s = JSON.parse(raw);
-        if (s.sorting) return s.sorting;
-      } catch (e) {
-        console.error('Failed to parse column filters from localStorage', e);
-      }
-    }
-    return [];
-  });
-
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>(() => {
-    const raw = localStorage.getItem(storageKey);
-    if (raw) {
-      try {
-        const s = JSON.parse(raw);
-        if (s.columnFilters) return s.columnFilters;
-      } catch (e) {
-        console.error('Failed to parse column filters from localStorage', e);
-      }
-    }
-    return [];
-  });
-
-  const [globalFilter, setGlobalFilter] = useState(() => {
-    const raw = localStorage.getItem(storageKey);
-    if (raw) {
-      try {
-        const s = JSON.parse(raw);
-        if (s.globalFilter) return s.globalFilter;
-      } catch (e) {
-        console.error('Failed to parse column filters from localStorage', e);
-      }
-    }
-    return '';
-  });
-
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(() => {
-    const raw = localStorage.getItem(storageKey);
-    if (raw) {
-      try {
-        const s = JSON.parse(raw);
-        if (s.columnVisibility) return s.columnVisibility;
-      } catch (e) {
-        console.error('Failed to parse column filters from localStorage', e);
-      }
-    }
-    return {};
-  });
-
-  const [grouping, setGrouping] = useState<GroupingState>(() => {
-    const raw = localStorage.getItem(storageKey);
-    if (raw) {
-      try {
-        const s = JSON.parse(raw);
-        if (s.grouping) return s.grouping;
-      } catch (e) {
-        console.error('Failed to parse column filters from localStorage', e);
-      }
-    }
-    return [];
-  });
-
-  const [expanded, setExpanded] = useState<ExpandedState>({});
-
-  const [columnOrder, setColumnOrder] = useState<ColumnOrderState>(() => {
-    const raw = localStorage.getItem(storageKey);
-    if (raw) {
-      try {
-        const s = JSON.parse(raw);
-        if (s.columnOrder) return s.columnOrder;
-      } catch (e) {
-        console.error('Failed to parse column filters from localStorage', e);
-      }
-    }
-    return [];
-  });
-
-  const [columnPinning, setColumnPinning] = useState<ColumnPinningState>(() => {
-    const raw = localStorage.getItem(storageKey);
-    if (raw) {
-      try {
-        const s = JSON.parse(raw);
-        if (s.columnPinning) return s.columnPinning;
-      } catch (e) {
-        console.error('Failed to parse column filters from localStorage', e);
-      }
-    }
-    return { left: ['__select__', '__actions__'], right: [] };
-  });
+  const {
+    pagination,
+    setPagination,
+    sorting,
+    setSorting,
+    columnFilters,
+    setColumnFilters,
+    globalFilter,
+    setGlobalFilter,
+    debouncedGlobalFilter,
+    columnVisibility,
+    setColumnVisibility,
+    columnOrder,
+    setColumnOrder,
+    columnPinning,
+    setColumnPinning,
+    grouping,
+    setGrouping,
+    density,
+    setDensity,
+    resetState,
+  } = useTableState(storageKey);
 
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
-
-  const [density, setDensity] = useState<'small' | 'medium' | 'large'>(() => {
-    const raw = localStorage.getItem(storageKey);
-    if (raw) {
-      try {
-        const s = JSON.parse(raw);
-        if (s.density) return s.density;
-      } catch (e) {
-        console.error('Failed to parse column filters from localStorage', e);
-      }
-    }
-    return 'small';
-  });
-
+  const [expanded, setExpanded] = useState<ExpandedState>({});
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
 
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<Record<string, any>>({});
-
-  /* -------- NEW -------- */
   const [rowErrors, setRowErrors] = useState<MRTValidationErrors<T>>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
-
-  /* ---------------- Persistence ---------------- */
-
-  const resetState = useCallback(() => {
-    setPagination({ pageIndex: 0, pageSize: 10 });
-    setSorting([]);
-    setColumnFilters([]);
-    setGlobalFilter('');
-    setColumnVisibility({});
-    setColumnOrder([]);
-    setColumnPinning({ left: ['__select__', '__actions__'], right: [] });
-    setGrouping([]);
-    setDensity('small');
-    localStorage.removeItem(storageKey);
-  }, [storageKey]);
-
-  useEffect(() => {
-    localStorage.setItem(
-      storageKey,
-      JSON.stringify({
-        pagination,
-        sorting,
-        columnFilters,
-        globalFilter,
-        columnVisibility,
-        columnOrder,
-        columnPinning,
-        density,
-        grouping,
-      }),
-    );
-  }, [storageKey, pagination, sorting, columnFilters, globalFilter, columnVisibility, columnOrder, columnPinning, density, grouping]);
+  const tableContainerRef = useRef<HTMLDivElement>(null);
 
   /* ---------------- Server Fetch ---------------- */
 
   useEffect(() => {
     if (!manualMode || !fetchData) return;
-    fetchData({ pagination, sorting, columnFilters, globalFilter });
-  }, [manualMode, fetchData, pagination, sorting, columnFilters, globalFilter]);
+    fetchData({ pagination, sorting, columnFilters, globalFilter: debouncedGlobalFilter });
+  }, [manualMode, fetchData, pagination, sorting, columnFilters, debouncedGlobalFilter]);
 
   /* ---------------- Columns ---------------- */
 
@@ -1001,11 +951,11 @@ function MRTLikeTableInner<T extends object>({
                     size='small'
                     color='primary'
                     onClick={async () => {
-                      const errors = meta.validateRow?.(meta.editValues, row.original);
+                      const errors = await meta.validateRow?.(meta.editValues, row.original);
 
-                      if (errors) {
+                      if (errors && Object.keys(errors).length > 0) {
                         meta.setRowErrors?.(errors);
-                        return; // ✅ block save
+                        return;
                       }
 
                       await meta.onRowSave?.(row.original, meta.editValues);
@@ -1024,7 +974,7 @@ function MRTLikeTableInner<T extends object>({
                     onClick={() => {
                       meta.setEditingRowId(null);
                       meta.setEditValues({});
-                      meta.setRowErrors?.(null); // ✅ add this
+                      meta.setRowErrors?.(null);
                     }}
                   >
                     <Cancel fontSize='small' />
@@ -1042,7 +992,7 @@ function MRTLikeTableInner<T extends object>({
                     size='small'
                     onClick={() => {
                       meta.setEditingRowId(row.id);
-                      meta.setEditValues(row.original);
+                      meta.setEditValues({ ...row.original });
                     }}
                   >
                     <Edit fontSize='small' />
@@ -1070,7 +1020,7 @@ function MRTLikeTableInner<T extends object>({
       pagination,
       sorting,
       columnFilters,
-      globalFilter,
+      globalFilter: debouncedGlobalFilter,
       columnVisibility,
       columnOrder,
       columnPinning,
@@ -1078,7 +1028,14 @@ function MRTLikeTableInner<T extends object>({
       grouping,
       expanded,
     },
+    defaultColumn: {
+      minSize: 40,
+      size: 150,
+      maxSize: 1000,
+      filterFn: 'includesString', // Default to string includes to avoid TanStack auto-guessing wrong types
+    },
     enableRowSelection: (row) => !row.getIsGrouped(),
+
     enableGrouping: true,
     manualPagination: manualMode,
     manualSorting: manualMode,
@@ -1095,6 +1052,8 @@ function MRTLikeTableInner<T extends object>({
     onGroupingChange: setGrouping,
     onExpandedChange: setExpanded,
     columnResizeMode: 'onChange',
+    globalFilterFn: 'includesString',
+
     meta: {
       editingRowId,
       setEditingRowId,
@@ -1102,7 +1061,6 @@ function MRTLikeTableInner<T extends object>({
       setEditValues,
       onRowSave,
       enableEditing,
-      /* -------- NEW -------- */
       validateRow,
       rowErrors,
       setRowErrors,
@@ -1122,9 +1080,12 @@ function MRTLikeTableInner<T extends object>({
     const { active, over } = event;
     if (active && over && active.id !== over.id) {
       setColumnOrder((old) => {
-        const oldIndex = old.indexOf(active.id as string);
-        const newIndex = old.indexOf(over.id as string);
-        return arrayMove(old, oldIndex, newIndex);
+        const columnIds = old.length ? old : table.getAllLeafColumns().map((c) => c.id);
+        const oldIndex = columnIds.indexOf(active.id as string);
+        const newIndex = columnIds.indexOf(over.id as string);
+
+        if (oldIndex === -1 || newIndex === -1) return old;
+        return arrayMove(columnIds, oldIndex, newIndex);
       });
     }
   }, []);
@@ -1140,7 +1101,6 @@ function MRTLikeTableInner<T extends object>({
 
   const selectedRows = table.getSelectedRowModel().rows.map((r) => r.original);
 
-  /* -------- NEW -------- */
   const selectedRowIds = Object.keys(rowSelection);
 
   const handleServerExport = (type: 'csv' | 'xlsx' | 'pdf', selectionMode: 'all' | 'page' | 'selected') => {
@@ -1149,18 +1109,34 @@ function MRTLikeTableInner<T extends object>({
       selectionMode,
       sorting,
       columnFilters,
-      globalFilter,
+      globalFilter: debouncedGlobalFilter,
       selectedRowIds,
     });
   };
 
+  /* ---------------- Virtualization ---------------- */
+
+  const { rows } = table.getRowModel();
+  const rowVirtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => tableContainerRef.current,
+    estimateSize: () => (density === 'small' ? 37 : density === 'medium' ? 53 : 69),
+    overscan: 10,
+  });
+
   /* ---------------- Visibility Menu ---------------- */
 
   const [visibilityAnchor, setVisibilityAnchor] = useState<HTMLElement | null>(null);
+  const [exportAnchor, setExportAnchor] = useState<HTMLElement | null>(null);
 
   /* ---------------- Render ---------------- */
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+
+  const sortableItems = React.useMemo(
+    () => (table.getState().columnOrder.length ? table.getState().columnOrder : table.getAllLeafColumns().map((c) => c.id)),
+    [table.getState().columnOrder, table.getAllLeafColumns()],
+  );
 
   return (
     <Paper
@@ -1197,72 +1173,16 @@ function MRTLikeTableInner<T extends object>({
           bgcolor: 'background.paper',
         }}
       >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          {title && <Typography variant='h6'>{title}</Typography>}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          {title && (
+            <Typography variant='h6' sx={{ mr: 2 }}>
+              {title}
+            </Typography>
+          )}
           {renderTopToolbarCustomActions?.(table)}
+        </Box>
 
-          <Box sx={{ flexGrow: 1 }} />
-
-          <Tooltip title='Export CSV'>
-            <IconButton
-              size='small'
-              onClick={() => {
-                if (manualMode && onExport) {
-                  handleServerExport('csv', selectedRows.length ? 'selected' : 'all');
-                } else {
-                  exportCSV(
-                    table.getFilteredRowModel().rows.map((r: any) => r.original),
-                    table,
-                  );
-                }
-              }}
-            >
-              <Download />
-            </IconButton>
-          </Tooltip>
-
-          <Tooltip title='Export Excel'>
-            <IconButton
-              size='small'
-              onClick={() => {
-                if (manualMode && onExport) {
-                  handleServerExport('xlsx', selectedRows.length ? 'selected' : 'all');
-                } else {
-                  exportXLSX(
-                    table.getFilteredRowModel().rows.map((r: any) => r.original),
-                    table,
-                  );
-                }
-              }}
-            >
-              <TableRows />
-            </IconButton>
-          </Tooltip>
-
-          <Tooltip title='Export PDF'>
-            <IconButton
-              size='small'
-              onClick={() => {
-                if (manualMode && onExport) {
-                  handleServerExport('pdf', selectedRows.length ? 'selected' : 'all');
-                } else {
-                  exportPDF(
-                    table.getFilteredRowModel().rows.map((r: any) => r.original),
-                    table,
-                  );
-                }
-              }}
-            >
-              <PictureAsPdf />
-            </IconButton>
-          </Tooltip>
-
-          <Tooltip title='Reset State'>
-            <IconButton onClick={resetState} size='small'>
-              <RestartAlt />
-            </IconButton>
-          </Tooltip>
-
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           {enableGlobalFilter && (
             <TextField
               size='small'
@@ -1288,9 +1208,7 @@ function MRTLikeTableInner<T extends object>({
               sx={{ width: 250 }}
             />
           )}
-        </Box>
 
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
           {enableColumnFilters && (
             <Tooltip title={showFilters ? 'Hide Filters' : 'Show Filters'}>
               <IconButton color={showFilters ? 'primary' : 'default'} onClick={() => setShowFilters(!showFilters)}>
@@ -1299,45 +1217,23 @@ function MRTLikeTableInner<T extends object>({
             </Tooltip>
           )}
 
+          <Tooltip title='Export Options'>
+            <IconButton onClick={(e) => setExportAnchor(e.currentTarget)}>
+              <Download />
+            </IconButton>
+          </Tooltip>
+
           {enableHiding && (
-            <Tooltip title='Show/Hide Columns'>
+            <Tooltip title='View Settings'>
               <IconButton onClick={(e) => setVisibilityAnchor(e.currentTarget)}>
                 <ViewColumn />
               </IconButton>
             </Tooltip>
           )}
 
-          {enableDensity && (
-            <Box
-              sx={{
-                display: 'flex',
-                border: '1px solid',
-                borderColor: 'divider',
-                borderRadius: 1,
-                ml: 1,
-              }}
-            >
-              <Tooltip title='Small Density'>
-                <IconButton size='small' color={density === 'small' ? 'primary' : 'default'} onClick={() => setDensity('small')}>
-                  <DensitySmall fontSize='small' />
-                </IconButton>
-              </Tooltip>
-              <Tooltip title='Medium Density'>
-                <IconButton size='small' color={density === 'medium' ? 'primary' : 'default'} onClick={() => setDensity('medium')}>
-                  <DensityMedium fontSize='small' />
-                </IconButton>
-              </Tooltip>
-              <Tooltip title='Large Density'>
-                <IconButton size='small' color={density === 'large' ? 'primary' : 'default'} onClick={() => setDensity('large')}>
-                  <DensityLarge fontSize='small' />
-                </IconButton>
-              </Tooltip>
-            </Box>
-          )}
-
-          <Tooltip title='Export Data'>
-            <IconButton onClick={() => exportCSV(selectedRows.length ? selectedRows : data, table)}>
-              <Download />
+          <Tooltip title='Reset Table'>
+            <IconButton onClick={resetState} size='small'>
+              <RestartAlt />
             </IconButton>
           </Tooltip>
 
@@ -1348,6 +1244,46 @@ function MRTLikeTableInner<T extends object>({
           )}
         </Box>
       </Box>
+
+      {/* Export Menu */}
+      <Menu anchorEl={exportAnchor} open={Boolean(exportAnchor)} onClose={() => setExportAnchor(null)}>
+        <MenuItem
+          onClick={() => {
+            setExportAnchor(null);
+            if (manualMode && onExport) handleServerExport('csv', selectedRowIds.length ? 'selected' : 'all');
+            else exportCSV(selectedRowIds.length ? selectedRows : rows.map((r) => r.original), table);
+          }}
+        >
+          <ListItemIcon>
+            <Download fontSize='small' />
+          </ListItemIcon>
+          <ListItemText>Export CSV</ListItemText>
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            setExportAnchor(null);
+            if (manualMode && onExport) handleServerExport('xlsx', selectedRowIds.length ? 'selected' : 'all');
+            else exportXLSX(selectedRowIds.length ? selectedRows : rows.map((r) => r.original), table);
+          }}
+        >
+          <ListItemIcon>
+            <TableRows fontSize='small' />
+          </ListItemIcon>
+          <ListItemText>Export Excel</ListItemText>
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            setExportAnchor(null);
+            if (manualMode && onExport) handleServerExport('pdf', selectedRowIds.length ? 'selected' : 'all');
+            else exportPDF(selectedRowIds.length ? selectedRows : rows.map((r) => r.original), table);
+          }}
+        >
+          <ListItemIcon>
+            <PictureAsPdf fontSize='small' />
+          </ListItemIcon>
+          <ListItemText>Export PDF</ListItemText>
+        </MenuItem>
+      </Menu>
 
       {/* Column Visibility Menu */}
       <Menu
@@ -1388,82 +1324,137 @@ function MRTLikeTableInner<T extends object>({
             </MenuItem>
           );
         })}
+        <Divider />
+        <Box sx={{ p: 1 }}>
+          <Typography variant='caption' sx={{ px: 1, fontWeight: 'bold' }}>
+            Density
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 1, mt: 1, px: 1 }}>
+            <Tooltip title='Small'>
+              <IconButton size='small' color={density === 'small' ? 'primary' : 'default'} onClick={() => setDensity('small')}>
+                <DensitySmall fontSize='small' />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title='Medium'>
+              <IconButton size='small' color={density === 'medium' ? 'primary' : 'default'} onClick={() => setDensity('medium')}>
+                <DensityMedium fontSize='small' />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title='Large'>
+              <IconButton size='small' color={density === 'large' ? 'primary' : 'default'} onClick={() => setDensity('large')}>
+                <DensityLarge fontSize='small' />
+              </IconButton>
+            </Tooltip>
+          </Box>
+        </Box>
       </Menu>
 
       {/* Table Area */}
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-        <SortableContext
-          items={table.getState().columnOrder.length ? table.getState().columnOrder : table.getAllLeafColumns().map((c) => c.id)}
-          strategy={horizontalListSortingStrategy}
-        >
-          <TableContainer
+        <SortableContext items={sortableItems} strategy={horizontalListSortingStrategy}>
+          <Box
+            ref={tableContainerRef}
             sx={{
               flexGrow: 1,
               maxHeight: isFullScreen ? 'calc(100vh - 120px)' : 550,
               position: 'relative',
+              overflow: 'auto',
             }}
           >
-            <Table stickyHeader size={density === 'large' ? 'medium' : 'small'}>
-              <TableHead>
-                {table.getHeaderGroups().map((hg) => (
-                  <TableRow key={hg.id}>
-                    {hg.headers.map((header) => (
-                      <MRTLikeTableHeaderCell
-                        key={header.id}
-                        header={header}
-                        density={density}
-                        enableColumnOrdering={enableColumnOrdering}
-                        enableColumnPinning={enableColumnPinning}
-                        enableGrouping={enableGrouping}
-                        showFilters={showFilters}
-                        columnVisibility={columnVisibility}
-                        isAllSelected={table.getIsAllRowsSelected()}
-                        isSomeSelected={table.getIsSomeRowsSelected()}
-                      />
-                    ))}
-                  </TableRow>
-                ))}
-              </TableHead>
+            {/* Header */}
+            <Box
+              sx={{
+                display: 'block',
+                position: 'sticky',
+                top: 0,
+                zIndex: 10,
+                width: 'max-content',
+                minWidth: '100%',
+              }}
+            >
+              {table.getHeaderGroups().map((hg) => (
+                <Box
+                  key={hg.id}
+                  sx={{
+                    display: 'flex',
+                    width: 'max-content',
+                    minWidth: '100%',
+                  }}
+                >
+                  {hg.headers.map((header) => (
+                    <MRTLikeTableHeaderCell
+                      key={header.id}
+                      header={header}
+                      density={density}
+                      enableColumnOrdering={enableColumnOrdering}
+                      enableColumnPinning={enableColumnPinning}
+                      enableGrouping={enableGrouping}
+                      showFilters={showFilters}
+                      columnVisibility={columnVisibility}
+                      isAllSelected={table.getIsAllRowsSelected()}
+                      isSomeSelected={table.getIsSomeRowsSelected()}
+                      columnSizing={table.getState().columnSizing}
+                    />
+                  ))}
+                </Box>
+              ))}
+            </Box>
 
-              <TableBody>
-                {loading ? (
-                  Array.from({ length: 5 }).map((_, i) => (
-                    <TableRow key={i}>
-                      {table.getVisibleLeafColumns().map((c) => (
-                        <TableCell key={c.id}>
-                          <Skeleton variant='text' />
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  ))
-                ) : table.getRowModel().rows.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={999} align='center' sx={{ py: 10 }}>
-                      <Typography variant='body1' color='text.secondary'>
-                        No records found
-                      </Typography>
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  table
-                    .getRowModel()
-                    .rows.map((row) => (
-                      <MRTLikeTableRow
-                        key={row.id}
-                        row={row}
-                        density={density}
-                        columnVisibility={columnVisibility}
-                        isSelected={row.getIsSelected()}
-                        enableClickToCopy={enableClickToCopy}
-                        editingRowId={editingRowId}
-                        editValues={editValues}
-                        onEditChange={(col, val) => setEditValues((prev) => ({ ...prev, [col]: val }))}
-                      />
-                    ))
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
+            {/* Body */}
+            <Box
+              sx={{
+                display: 'block',
+                height: `${rowVirtualizer.getTotalSize()}px`,
+                width: 'max-content',
+                minWidth: '100%',
+                position: 'relative',
+              }}
+            >
+              {loading ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <Box key={i} sx={{ display: 'flex' }}>
+                    {table.getVisibleLeafColumns().map((c) => (
+                      <Box key={c.id} sx={{ p: 1, width: c.getSize() }}>
+                        <Skeleton variant='text' />
+                      </Box>
+                    ))}
+                  </Box>
+                ))
+              ) : rows.length === 0 ? (
+                <Box sx={{ p: 4, textAlign: 'center' }}>
+                  <Typography variant='body1' color='text.secondary'>
+                    No records found
+                  </Typography>
+                </Box>
+              ) : (
+                rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                  const row = rows[virtualRow.index];
+                  return (
+                    <MRTLikeTableRow
+                      key={row.id}
+                      row={row}
+                      density={density}
+                      columnVisibility={columnVisibility}
+                      isSelected={row.getIsSelected()}
+                      enableClickToCopy={enableClickToCopy}
+                      editingRowId={editingRowId}
+                      editValues={editValues}
+                      onEditChange={(col, val) => setEditValues((prev) => ({ ...prev, [col]: val }))}
+                      columnSizing={table.getState().columnSizing}
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: `${virtualRow.size}px`,
+                        transform: `translateY(${virtualRow.start}px)`,
+                      }}
+                    />
+                  );
+                })
+              )}
+            </Box>
+          </Box>
         </SortableContext>
       </DndContext>
 
