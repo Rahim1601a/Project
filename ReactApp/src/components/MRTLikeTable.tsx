@@ -15,6 +15,9 @@ import {
   getSortedRowModel,
   getGroupedRowModel,
   getExpandedRowModel,
+  getFacetedRowModel,
+  getFacetedUniqueValues,
+  getFacetedMinMaxValues,
   useReactTable,
 } from '@tanstack/react-table';
 
@@ -105,9 +108,10 @@ export type MRTLikeTableProps<T extends object> = {
   enableFullScreen?: boolean;
   enableGrouping?: boolean;
   enableExpanding?: boolean;
-  enableClickToCopy?: boolean;
   enableRowNumbers?: boolean;
   enableEditing?: boolean;
+  enableColumnResizing?: boolean;
+  enableClickToCopy?: boolean;
 
   renderDetailPanel?: (props: { row: T }) => React.ReactNode;
 
@@ -430,12 +434,13 @@ const ColumnFilter = React.memo(function ColumnFilter({ column }: { column: any 
   // RANGE FILTER (NUMBER / DATE)
   if (variant === 'range') {
     const [min, max] = (localValue as [any, any]) ?? [];
+    const facetedMinMax = column.getFacetedMinMaxValues();
 
     return (
       <Box sx={{ display: 'flex', gap: 0.5, mt: 0.5, width: '100%' }}>
         <TextField
           size='small'
-          placeholder='Min'
+          placeholder={facetedMinMax?.[0] ? `Min (${facetedMinMax[0]})` : 'Min'}
           type='number'
           value={min ?? ''}
           onChange={(e) => setLocalValue([e.target.value || undefined, max])}
@@ -443,7 +448,7 @@ const ColumnFilter = React.memo(function ColumnFilter({ column }: { column: any 
         />
         <TextField
           size='small'
-          placeholder='Max'
+          placeholder={facetedMinMax?.[1] ? `Max (${facetedMinMax[1]})` : 'Max'}
           type='number'
           value={max ?? ''}
           onChange={(e) => setLocalValue([min, e.target.value || undefined])}
@@ -613,13 +618,10 @@ const MRTLikeTableRow = memo(
     {
       row,
       density,
-      isSelected,
       enableClickToCopy,
       editingRowId,
       editValues,
-      onEditChange,
       style,
-      columnSizing, // Used to trigger re-render
       renderDetailPanel,
       virtualIndex,
     }: {
@@ -829,6 +831,7 @@ function MRTLikeTableInner<T extends object>({
   enableColumnFilters = true,
   enableColumnOrdering = true,
   enableColumnPinning = true,
+  enableColumnResizing = true,
   enableHiding = true,
   enableFullScreen = true,
   enableGrouping = false,
@@ -1074,6 +1077,8 @@ function MRTLikeTableInner<T extends object>({
     onRowSelectionChange: setRowSelection,
     onGroupingChange: setGrouping,
     onExpandedChange: setExpanded,
+
+    enableColumnResizing,
     columnResizeMode: 'onChange',
     globalFilterFn: 'includesString',
 
@@ -1094,6 +1099,9 @@ function MRTLikeTableInner<T extends object>({
     getPaginationRowModel: getPaginationRowModel(),
     getGroupedRowModel: getGroupedRowModel(),
     getExpandedRowModel: getExpandedRowModel(),
+    getFacetedRowModel: getFacetedRowModel(),
+    getFacetedUniqueValues: getFacetedUniqueValues(),
+    getFacetedMinMaxValues: getFacetedMinMaxValues(),
     autoResetPageIndex: false,
   });
 

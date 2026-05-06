@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Container, Typography, Box, Chip, Divider } from '@mui/material';
+import { Typography, Box, Chip, Divider } from '@mui/material';
 import { MRTLikeTable } from '../components/MRTLikeTable';
 import type { ColumnDef } from '@tanstack/react-table';
 
@@ -241,7 +241,7 @@ const TableDemoPage: React.FC = () => {
         )}
         storageKey="demo-table-all-features-v3"
         actionMode="menu"
-        renderRowActionMenuItems={(row, close) => [
+        renderRowActionMenuItems={(_, close) => [
           <Box key="actions" sx={{ py: 1 }}>
             <Typography variant="caption" sx={{ px: 2, fontWeight: "bold" }}>
               Quick Actions
