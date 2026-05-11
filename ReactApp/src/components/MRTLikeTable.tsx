@@ -8,6 +8,7 @@ import {
   type VisibilityState,
   type RowSelectionState,
   type ExpandedState,
+  type ColumnSizingState,
   flexRender,
   getCoreRowModel,
   getFilteredRowModel,
@@ -19,11 +20,15 @@ import {
   getFacetedUniqueValues,
   getFacetedMinMaxValues,
   useReactTable,
+  type FilterFn,
 } from '@tanstack/react-table';
 
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { jsPDF } from 'jspdf';
 import { autoTable } from 'jspdf-autotable';
+
+import Flatpickr from 'react-flatpickr';
+import Select from 'react-select';
 
 import {
   Box,
@@ -43,6 +48,8 @@ import {
   InputAdornment,
   alpha,
   Skeleton,
+  Autocomplete,
+  Slider,
 } from '@mui/material';
 
 import {
@@ -76,15 +83,32 @@ import { DndContext, PointerSensor, useSensor, useSensors, closestCenter, type D
 import { SortableContext, horizontalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
 
 import { CSS } from '@dnd-kit/utilities';
-
-import { useTableState } from '../hooks/useTableState';
+import { useTableState } from '@/hooks/useTableState';
 
 /* =========================================================
    Types
 ========================================================= */
 
+export type MRTLikeColumnDef<T extends object> = ColumnDef<T, unknown> & {
+  filterVariant?:
+    | 'autocomplete'
+    | 'checkbox'
+    | 'date'
+    | 'date-range'
+    | 'datetime'
+    | 'datetime-range'
+    | 'multi-select'
+    | 'range'
+    | 'range-slider'
+    | 'select'
+    | 'text'
+    | 'time'
+    | 'time-range';
+  multiSelectLogic?: 'AND' | 'OR';
+};
+
 export type MRTLikeTableProps<T extends object> = {
-  columns: ColumnDef<T, unknown>[];
+  columns: MRTLikeColumnDef<T>[];
   data?: T[];
 
   loading?: boolean;
@@ -133,6 +157,9 @@ export type MRTLikeTableProps<T extends object> = {
     globalFilter: string;
     selectedRowIds: string[];
   }) => Promise<void>;
+
+  /** Dynamic filter options by column accessor key */
+  filterOptions?: Record<string, Array<string | { label?: string; value: any }>>;
 };
 /* =========================================================
    NEW: Editing + Validation Types (Additive)
@@ -156,6 +183,98 @@ export type MRTLikeTableMeta<T extends object> = {
 /* =========================================================
    Helpers
 ========================================================= */
+const normalize = (v: unknown) =>
+  String(v ?? '')
+    .toLowerCase()
+    .trim();
+
+export const filterFnByVariant: Record<string, FilterFn<any>> = {
+  text: (row, columnId, value) => {
+    if (!value) return true;
+    return normalize(row.getValue(columnId)).includes(normalize(value));
+  },
+
+  select: (row, columnId, value) => {
+    if (!value) return true;
+    return normalize(row.getValue(columnId)) === normalize(value);
+  },
+
+  autocomplete: (row, columnId, value) => {
+    if (!value) return true;
+    return normalize(row.getValue(columnId)) === normalize(value);
+  },
+
+  'multi-select': (row, columnId, value) => {
+    if (!Array.isArray(value) || value.length === 0) return true;
+
+    const cell = normalize(row.getValue(columnId));
+    return value.some((v) => cell === normalize(v));
+  },
+
+  range: (row, columnId, value) => {
+    if (!Array.isArray(value)) return true;
+    const [min, max] = value;
+    const num = Number(row.getValue(columnId));
+    if (min != null && num < min) return false;
+    if (max != null && num > max) return false;
+    return true;
+  },
+};
+
+function setFilterSafe(column: any, value: any) {
+  if (value === undefined || value === null || value === '' || (Array.isArray(value) && value.length === 0)) {
+    column.setFilterValue(undefined);
+  } else {
+    column.setFilterValue(value);
+  }
+}
+
+function getAccessorKey<T extends object>(column: MRTLikeColumnDef<T>): string | undefined {
+  return typeof (column as any).accessorKey === 'string' ? ((column as any).accessorKey as string) : undefined;
+}
+
+function buildFilterOptionsFromData<T extends object>(data: T[], columns: MRTLikeColumnDef<T>[]) {
+  const result: Record<string, Array<{ label: string; value: any }>> = {};
+
+  columns.forEach((col) => {
+    const key = typeof (col as any).accessorKey === 'string' ? ((col as any).accessorKey as keyof T) : undefined;
+
+    if (!key) return;
+
+    if (col.filterVariant !== 'select' && col.filterVariant !== 'multi-select' && col.filterVariant !== 'autocomplete') {
+      return;
+    }
+
+    // ✅ Use Map for deduplication
+    const uniqueMap = new Map<string, any>();
+
+    data.forEach((row) => {
+      const rawValue = row[key];
+
+      if (rawValue === null || rawValue === undefined || rawValue === '') {
+        return;
+      }
+
+      // ✅ Normalize value for uniqueness
+      const normalizedKey = typeof rawValue === 'string' ? rawValue.trim().toLowerCase() : String(rawValue);
+
+      if (!uniqueMap.has(normalizedKey)) {
+        uniqueMap.set(normalizedKey, rawValue);
+      }
+    });
+
+    if (uniqueMap.size > 0) {
+      result[key as string] = Array.from(uniqueMap.values())
+        .sort((a, b) => String(a).localeCompare(String(b)))
+        .map((value) => ({
+          label: String(value),
+          value,
+        }));
+    }
+  });
+
+  return result;
+}
 
 function exportCSV<T extends object>(rows: T[], table: any, file = 'export.csv') {
   const columns = table.getAllColumns().filter((c: any) => c.id !== '__actions__' && c.id !== '__select__');
@@ -167,7 +286,7 @@ function exportCSV<T extends object>(rows: T[], table: any, file = 'export.csv')
           const val = (row as any)[c.id] ?? '';
           return `"${val.toString().replace(/"/g, '""')}"`;
         })
-        .join(','),
+        .join(',')
     )
     .join('\n');
   const blob = new Blob([`${header}\n${body}`], {
@@ -295,8 +414,14 @@ const ResizeHandle = memo(function ResizeHandle({ header }: { header: any }) {
 
   return (
     <Box
-      onMouseDown={header.getResizeHandler()}
-      onTouchStart={header.getResizeHandler()}
+      onMouseDown={(e) => {
+        e.stopPropagation();
+        header.getResizeHandler()(e);
+      }}
+      onTouchStart={(e) => {
+        e.stopPropagation();
+        header.getResizeHandler()(e);
+      }}
       sx={{
         position: 'absolute',
         right: 0,
@@ -348,11 +473,18 @@ const RowActionMenu = memo(function RowActionMenu({ row, render }: { row: any; r
    Column Filter UI
 ========================================================= */
 
-const ColumnFilter = React.memo(function ColumnFilter({ column }: { column: any }) {
-  if (!column.getCanFilter()) return null;
-
+const ColumnFilter = React.memo(function ColumnFilter({
+  column,
+  filterOptions,
+}: {
+  column: any;
+  filterOptions?: Record<string, Array<string | { label?: string; value: any }>>;
+}) {
   const variant = column.columnDef.filterVariant ?? 'text';
   const columnFilterValue = column.getFilterValue();
+  const accessorKey = typeof column.columnDef.accessorKey === 'string' ? column.columnDef.accessorKey : undefined;
+
+  const columnFilterOptions = accessorKey ? (filterOptions?.[accessorKey] ?? []) : [];
 
   // Local state for debouncing input to prevent lag and focus loss
   const [localValue, setLocalValue] = React.useState(columnFilterValue);
@@ -360,8 +492,12 @@ const ColumnFilter = React.memo(function ColumnFilter({ column }: { column: any 
 
   // Sync external changes (e.g., clearing filters globally) to local state
   React.useEffect(() => {
-    // Only sync if the incoming value is different from what we last pushed.
-    // This prevents overwriting the user's current typing if a debounce just fired.
+    if (columnFilterValue === undefined) {
+      setLocalValue(undefined);
+      lastPushedValue.current = undefined;
+      return;
+    }
+
     if (JSON.stringify(columnFilterValue) !== JSON.stringify(lastPushedValue.current)) {
       setLocalValue(columnFilterValue);
       lastPushedValue.current = columnFilterValue;
@@ -374,11 +510,13 @@ const ColumnFilter = React.memo(function ColumnFilter({ column }: { column: any 
       // Only set if different to prevent unnecessary re-renders
       if (JSON.stringify(localValue) !== JSON.stringify(columnFilterValue)) {
         lastPushedValue.current = localValue;
-        column.setFilterValue(localValue);
+        setFilterSafe(column, localValue);
       }
     }, 300);
     return () => clearTimeout(timeout);
   }, [localValue, columnFilterValue, column]);
+
+  if (!column.getCanFilter()) return null;
 
   // TEXT FILTER (MRT default)
   if (variant === 'text') {
@@ -422,12 +560,23 @@ const ColumnFilter = React.memo(function ColumnFilter({ column }: { column: any 
         sx={{ mt: 0.5, width: '100%' }}
       >
         <MenuItem value=''>All</MenuItem>
-        {column.columnDef.filterSelectOptions?.map((opt: string) => (
-          <MenuItem key={opt} value={opt}>
-            {opt}
-          </MenuItem>
-        ))}
+        {columnFilterOptions.map((opt: string | { label?: string; value: any }) => {
+          const optValue = typeof opt === 'string' ? opt : opt.value;
+          const optLabel = typeof opt === 'string' ? opt : opt.label || opt.value;
+          return (
+            <MenuItem key={optValue} value={optValue}>
+              {optLabel}
+            </MenuItem>
+          );
+        })}
       </TextField>
+    );
+  }
+
+  // CHECKBOX FILTER
+  if (variant === 'checkbox') {
+    return (
+      <Checkbox size='small' checked={localValue === 'Y'} onChange={(e) => setLocalValue(e.target.checked ? 'Y' : undefined)} sx={{ mt: 0.5 }} />
     );
   }
 
@@ -458,6 +607,210 @@ const ColumnFilter = React.memo(function ColumnFilter({ column }: { column: any 
     );
   }
 
+  // AUTOCOMPLETE FILTER
+  if (variant === 'autocomplete') {
+    const options = columnFilterOptions.map((opt: string | { label?: string; value: any }) =>
+      typeof opt === 'string' ? { label: opt, value: opt } : opt
+    );
+    return (
+      <Autocomplete
+        size='small'
+        options={options}
+        getOptionLabel={(option: { label?: string; value: any }) => option.label || option.value}
+        value={options.find((opt: { label?: string; value: any }) => opt.value === localValue) || null}
+        onChange={(_, newValue) => setLocalValue(newValue?.value || undefined)}
+        renderInput={(params) => <TextField {...params} placeholder='Select...' sx={{ mt: 0.5, width: '100%' }} />}
+        sx={{ width: '100%' }}
+      />
+    );
+  }
+
+  // DATE FILTER
+  if (variant === 'date') {
+    return (
+      <Flatpickr
+        value={localValue ? new Date(localValue as string) : undefined}
+        onChange={(dates) => setLocalValue(dates[0] ? dates[0].toISOString().split('T')[0] : undefined)}
+        options={{
+          dateFormat: 'Y-m-d',
+        }}
+        render={({ defaultValue, value, ...props }, ref) => (
+          <TextField {...props} inputRef={ref} size='small' placeholder='Select date...' sx={{ mt: 0.5, width: '100%' }} value={value} />
+        )}
+      />
+    );
+  }
+
+  // DATE-RANGE FILTER
+  if (variant === 'date-range') {
+    const [start, end] = (localValue as [string, string]) ?? [];
+    return (
+      <Flatpickr
+        value={start && end ? [new Date(start), new Date(end)] : []}
+        onChange={(dates) => {
+          if (dates.length === 2) {
+            setLocalValue([dates[0].toISOString().split('T')[0], dates[1].toISOString().split('T')[0]]);
+          } else {
+            setLocalValue(undefined);
+          }
+        }}
+        options={{
+          mode: 'range',
+          dateFormat: 'Y-m-d',
+        }}
+        render={({ defaultValue, value, ...props }, ref) => (
+          <TextField {...props} inputRef={ref} size='small' placeholder='Select date range...' sx={{ mt: 0.5, width: '100%' }} value={value} />
+        )}
+      />
+    );
+  }
+
+  // DATETIME FILTER
+  if (variant === 'datetime') {
+    return (
+      <Flatpickr
+        value={localValue ? new Date(localValue as string) : undefined}
+        onChange={(dates) => setLocalValue(dates[0] ? dates[0].toISOString() : undefined)}
+        options={{
+          enableTime: true,
+          dateFormat: 'Y-m-d H:i',
+        }}
+        render={({ defaultValue, value, ...props }, ref) => (
+          <TextField {...props} inputRef={ref} size='small' placeholder='Select datetime...' sx={{ mt: 0.5, width: '100%' }} value={value} />
+        )}
+      />
+    );
+  }
+
+  // DATETIME-RANGE FILTER
+  if (variant === 'datetime-range') {
+    const [start, end] = (localValue as [string, string]) ?? [];
+    return (
+      <Flatpickr
+        value={start && end ? [new Date(start), new Date(end)] : []}
+        onChange={(dates) => {
+          if (dates.length === 2) {
+            setLocalValue([dates[0].toISOString(), dates[1].toISOString()]);
+          } else {
+            setLocalValue(undefined);
+          }
+        }}
+        options={{
+          mode: 'range',
+          enableTime: true,
+          dateFormat: 'Y-m-d H:i',
+        }}
+        render={({ defaultValue, value, ...props }, ref) => (
+          <TextField {...props} inputRef={ref} size='small' placeholder='Select datetime range...' sx={{ mt: 0.5, width: '100%' }} value={value} />
+        )}
+      />
+    );
+  }
+
+  // MULTI-SELECT FILTER
+  if (variant === 'multi-select') {
+    const options = columnFilterOptions.map((opt: string | { label?: string; value: any }) =>
+      typeof opt === 'string' ? { label: opt, value: opt } : opt
+    );
+    const selectedValues = (localValue as string[]) ?? [];
+    const selectedOptions = options.filter((opt: { label?: string; value: any }) => selectedValues.includes(opt.value));
+    return (
+      <Select
+        isMulti
+        options={options}
+        value={selectedOptions}
+        menuPortalTarget={document.body} // ✅ REQUIRED
+        menuPosition='fixed' // ✅ REQUIRED
+        onChange={(newValues) => {
+          const values = Array.isArray(newValues) ? newValues.map((v) => v.value) : [];
+
+          setLocalValue(values.length ? values : undefined);
+        }}
+        // onChange={(newValues) => setLocalValue(Array.isArray(newValues) ? newValues.map((v: { value: any }) => v.value) : undefined)}
+        styles={{
+          control: (base) => ({
+            ...base,
+            minHeight: 32,
+            fontSize: '0.75rem',
+            zIndex: 1,
+          }),
+          menu: (base) => ({
+            ...base,
+            zIndex: 9999,
+          }),
+          menuPortal: (base) => ({
+            ...base,
+            zIndex: 9999,
+          }),
+        }}
+      />
+    );
+  }
+
+  // RANGE-SLIDER FILTER
+  if (variant === 'range-slider') {
+    const [min, max] = (localValue as [number, number]) ?? [0, 100];
+    const facetedMinMax = column.getFacetedMinMaxValues();
+    const sliderMin = facetedMinMax?.[0] ?? 0;
+    const sliderMax = facetedMinMax?.[1] ?? 100;
+    return (
+      <Box sx={{ mt: 0.5, px: 1 }}>
+        <Slider
+          value={[min, max]}
+          onChange={(_, newValue) => setLocalValue(newValue as [number, number])}
+          valueLabelDisplay='auto'
+          min={sliderMin}
+          max={sliderMax}
+          sx={{ width: '100%' }}
+        />
+      </Box>
+    );
+  }
+
+  // TIME FILTER
+  if (variant === 'time') {
+    return (
+      <Flatpickr
+        value={localValue ? new Date(`1970-01-01T${localValue as string}`) : undefined}
+        onChange={(dates) => setLocalValue(dates[0] ? dates[0].toTimeString().split(' ')[0] : undefined)}
+        options={{
+          enableTime: true,
+          noCalendar: true,
+          dateFormat: 'H:i',
+        }}
+        render={({ defaultValue, value, ...props }, ref) => (
+          <TextField {...props} inputRef={ref} size='small' placeholder='Select time...' sx={{ mt: 0.5, width: '100%' }} value={value} />
+        )}
+      />
+    );
+  }
+
+  // TIME-RANGE FILTER
+  if (variant === 'time-range') {
+    const [start, end] = (localValue as [string, string]) ?? [];
+    return (
+      <Flatpickr
+        value={start && end ? [new Date(`1970-01-01T${start}`), new Date(`1970-01-01T${end}`)] : []}
+        onChange={(dates) => {
+          if (dates.length === 2) {
+            setLocalValue([dates[0].toTimeString().split(' ')[0], dates[1].toTimeString().split(' ')[0]]);
+          } else {
+            setLocalValue(undefined);
+          }
+        }}
+        options={{
+          mode: 'range',
+          enableTime: true,
+          noCalendar: true,
+          dateFormat: 'H:i',
+        }}
+        render={({ defaultValue, value, ...props }, ref) => (
+          <TextField {...props} inputRef={ref} size='small' placeholder='Select time range...' sx={{ mt: 0.5, width: '100%' }} value={value} />
+        )}
+      />
+    );
+  }
+
   return null;
 });
 
@@ -465,11 +818,12 @@ const ColumnFilter = React.memo(function ColumnFilter({ column }: { column: any 
    Memoized Table Components
 ========================================================= */
 
-const MRTLikeTableCell = memo(function MRTLikeTableCell({
+const MRTLikeTableCell = function MRTLikeTableCell({
   cell,
   density,
   enableClickToCopy,
   isEditing,
+  columnSizing,
 }: {
   cell: any;
   density: string;
@@ -485,8 +839,10 @@ const MRTLikeTableCell = memo(function MRTLikeTableCell({
   const isPlaceholder = cell.getIsPlaceholder();
   const isAggregated = cell.getIsAggregated();
 
-  const handleCopy = () => {
+  const handleCopy = (event: React.MouseEvent<HTMLDivElement>) => {
     if (!enableClickToCopy || isEditing) return;
+    const target = event.target as HTMLElement;
+    if (target.closest('input,button,textarea,select,label,[role="button"],[role="checkbox"]')) return;
     const text = cell.getValue()?.toString() || '';
     navigator.clipboard.writeText(text);
   };
@@ -579,26 +935,38 @@ const MRTLikeTableCell = memo(function MRTLikeTableCell({
     );
   };
 
+  const isActionCell = ['__select__', '__actions__', '__expand__', '__row_numbers__'].includes(cell.column.id);
+  const cellPadding = isActionCell
+    ? density === 'small'
+      ? '0 2px'
+      : density === 'medium'
+        ? '0 4px'
+        : '0 6px'
+    : density === 'small'
+      ? '2px 4px'
+      : density === 'medium'
+        ? '4px 6px'
+        : '6px 8px';
+
   return (
     <Box
       role='cell'
       style={{
         width: cell.column.getSize(),
-        minWidth: cell.column.getSize(),
-        maxWidth: cell.column.getSize(),
         position: isPinned ? 'sticky' : 'relative',
         left: isPinned === 'left' ? cell.column.getStart('left') : undefined,
         right: isPinned === 'right' ? cell.column.getAfter('right') : undefined,
+        flex: `0 0 ${cell.column.getSize()}px`,
       }}
       sx={{
-        p: density === 'small' ? '4px 8px' : density === 'medium' ? '8px 12px' : '12px 16px',
+        p: cellPadding,
         zIndex: isPinned ? 2 : 1,
         backgroundColor: isPinned ? 'background.paper' : 'inherit',
         borderBottom: '1px solid',
         borderColor: 'divider',
         display: 'flex',
         alignItems: 'center',
-        flex: '0 0 auto',
+        justifyContent: isActionCell ? 'center' : 'flex-start',
         boxSizing: 'border-box',
         overflow: 'hidden',
         height: '100%',
@@ -611,19 +979,22 @@ const MRTLikeTableCell = memo(function MRTLikeTableCell({
       {renderContent()}
     </Box>
   );
-});
+};
 
 const MRTLikeTableRow = memo(
   React.forwardRef(function MRTLikeTableRow(
     {
       row,
       density,
+      isSelected,
       enableClickToCopy,
       editingRowId,
       editValues,
       style,
+      columnSizing,
       renderDetailPanel,
       virtualIndex,
+      rowSelection,
     }: {
       row: any;
       density: string;
@@ -636,8 +1007,9 @@ const MRTLikeTableRow = memo(
       columnSizing?: any;
       renderDetailPanel?: (props: { row: any }) => React.ReactNode;
       virtualIndex: number;
+      rowSelection?: Record<string, boolean>;
     },
-    ref: any,
+    ref: any
   ) {
     const isEditing = editingRowId === row.id;
 
@@ -650,8 +1022,8 @@ const MRTLikeTableRow = memo(
         sx={{
           display: 'flex',
           flexDirection: 'column',
-          width: 'max-content',
-          minWidth: '100%',
+          width: '100%',
+          minWidth: 'max-content',
           bgcolor: isEditing ? alpha('#000', 0.03) : row.getIsGrouped() ? alpha('#000', 0.02) : 'transparent',
           '&:hover': {
             bgcolor: (theme) => alpha(theme.palette.primary.main, 0.04),
@@ -659,7 +1031,7 @@ const MRTLikeTableRow = memo(
           boxSizing: 'border-box',
         }}
       >
-        <Box sx={{ display: 'flex', width: 'max-content', minWidth: '100%' }}>
+        <Box sx={{ display: 'flex', width: '100%', flex: '1 1 auto' }}>
           {row.getVisibleCells().map((cell: any) => (
             <MRTLikeTableCell
               key={cell.id}
@@ -668,6 +1040,7 @@ const MRTLikeTableRow = memo(
               enableClickToCopy={enableClickToCopy}
               isEditing={isEditing}
               editValue={isEditing ? editValues?.[cell.column.id] : undefined}
+              columnSizing={columnSizing}
             />
           ))}
         </Box>
@@ -680,7 +1053,7 @@ const MRTLikeTableRow = memo(
         )}
       </Box>
     );
-  }),
+  })
 );
 
 const MRTLikeTableHeaderCell = memo(function MRTLikeTableHeaderCell({
@@ -690,6 +1063,7 @@ const MRTLikeTableHeaderCell = memo(function MRTLikeTableHeaderCell({
   enableColumnPinning,
   enableGrouping,
   showFilters,
+  filterOptions,
 }: {
   header: any;
   density: string;
@@ -701,6 +1075,7 @@ const MRTLikeTableHeaderCell = memo(function MRTLikeTableHeaderCell({
   isAllSelected: boolean;
   isSomeSelected: boolean;
   columnSizing: any;
+  filterOptions?: Record<string, Array<string | { label?: string; value: any }>>;
 }) {
   const isPinned = header.column.getIsPinned();
   const style: React.CSSProperties = {
@@ -709,103 +1084,122 @@ const MRTLikeTableHeaderCell = memo(function MRTLikeTableHeaderCell({
     left: isPinned === 'left' ? header.column.getStart('left') : undefined,
     right: isPinned === 'right' ? header.column.getAfter('right') : undefined,
     zIndex: isPinned ? 3 : 1,
-    minWidth: header.getSize(),
-    maxWidth: header.getSize(),
+    flex: `0 0 ${header.getSize()}px`,
   };
+
+  const isActionColumn = header.column.id.startsWith('__');
+
+  // For action columns, use action cell padding (no vertical padding)
+  const headerPadding = isActionColumn
+    ? density === 'small'
+      ? '0 2px'
+      : density === 'medium'
+        ? '0 4px'
+        : '0 6px'
+    : density === 'small'
+      ? '2px 4px'
+      : density === 'medium'
+        ? '4px 6px'
+        : '6px 8px';
 
   return (
     <Box
       role='columnheader'
       style={style}
       sx={{
-        p: density === 'small' ? '4px 8px' : density === 'medium' ? '8px 12px' : '12px 16px',
+        position: 'relative',
+        p: headerPadding,
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'center',
-        flex: '0 0 auto',
         boxSizing: 'border-box',
         overflow: 'hidden',
         borderBottom: '2px solid',
         borderColor: 'divider',
-        fontWeight: 'bold',
-
+        fontWeight: isActionColumn ? 'normal' : 'bold',
         bgcolor: 'background.paper',
       }}
     >
-      <Box sx={{ display: 'flex', flexDirection: 'column' }}>
-        <Box
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 0.5,
-          }}
-        >
-          {enableColumnOrdering && !header.column.id.startsWith('__') ? (
-            <DraggableHeader
-              id={header.id}
-              isSortable={header.column.getCanSort()}
-              isSorted={header.column.getIsSorted()}
-              onSort={header.column.getToggleSortingHandler()}
-            >
-              {flexRender(header.column.columnDef.header, header.getContext())}
-            </DraggableHeader>
-          ) : (
-            <Box
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 1,
-                cursor: header.column.getCanSort() ? 'pointer' : 'default',
-                fontWeight: 600,
-              }}
-              onClick={header.column.getToggleSortingHandler()}
-            >
-              {flexRender(header.column.columnDef.header, header.getContext())}
-              {header.column.getIsSorted() && (
-                <Typography variant='caption' color='primary'>
-                  {header.column.getIsSorted() === 'asc' ? '↑' : '↓'}
-                </Typography>
-              )}
-            </Box>
-          )}
-
-          {enableGrouping && header.column.getCanGroup() && (
-            <IconButton
-              size='small'
-              onClick={() => header.column.toggleGrouping()}
-              sx={{
-                ml: 0.5,
-                opacity: header.column.getIsGrouped() ? 1 : 0.3,
-                '&:hover': { opacity: 1 },
-                color: header.column.getIsGrouped() ? 'primary.main' : 'inherit',
-              }}
-            >
-              <ViewModule sx={{ fontSize: '0.9rem' }} />
-            </IconButton>
-          )}
-
-          {enableColumnPinning && !header.column.id.startsWith('__') && (
-            <IconButton
-              size='small'
-              onClick={() => header.column.pin(header.column.getIsPinned() ? false : 'left')}
-              sx={{
-                ml: 'auto',
-                opacity: header.column.getIsPinned() ? 1 : 0.3,
-                '&:hover': { opacity: 1 },
-              }}
-            >
-              <PushPin
-                sx={{
-                  fontSize: '0.9rem',
-                  transform: header.column.getIsPinned() ? 'rotate(45deg)' : 'none',
-                }}
-              />
-            </IconButton>
-          )}
+      {isActionColumn ? (
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
+          {flexRender(header.column.columnDef.header, header.getContext())}
         </Box>
+      ) : (
+        <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 0.5,
+            }}
+          >
+            {enableColumnOrdering && !header.column.id.startsWith('__') ? (
+              <DraggableHeader
+                id={header.id}
+                isSortable={header.column.getCanSort()}
+                isSorted={header.column.getIsSorted()}
+                onSort={header.column.getToggleSortingHandler()}
+              >
+                {flexRender(header.column.columnDef.header, header.getContext())}
+              </DraggableHeader>
+            ) : (
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                  cursor: header.column.getCanSort() ? 'pointer' : 'default',
+                  fontWeight: 600,
+                }}
+                onClick={header.column.getToggleSortingHandler()}
+              >
+                {flexRender(header.column.columnDef.header, header.getContext())}
+                {header.column.getIsSorted() && (
+                  <Typography variant='caption' color='primary'>
+                    {header.column.getIsSorted() === 'asc' ? '↑' : '↓'}
+                  </Typography>
+                )}
+              </Box>
+            )}
 
-        {showFilters && header.column.getCanFilter() && <ColumnFilter column={header.column} />}
-      </Box>
+            {enableGrouping && header.column.getCanGroup() && (
+              <IconButton
+                size='small'
+                onClick={() => header.column.toggleGrouping()}
+                sx={{
+                  ml: 0.5,
+                  opacity: header.column.getIsGrouped() ? 1 : 0.3,
+                  '&:hover': { opacity: 1 },
+                  color: header.column.getIsGrouped() ? 'primary.main' : 'inherit',
+                }}
+              >
+                <ViewModule sx={{ fontSize: '0.9rem' }} />
+              </IconButton>
+            )}
+
+            {enableColumnPinning && !header.column.id.startsWith('__') && (
+              <IconButton
+                size='small'
+                onClick={() => header.column.pin(header.column.getIsPinned() ? false : 'left')}
+                sx={{
+                  ml: 'auto',
+                  opacity: header.column.getIsPinned() ? 1 : 0.3,
+                  '&:hover': { opacity: 1 },
+                }}
+              >
+                <PushPin
+                  sx={{
+                    fontSize: '0.9rem',
+                    transform: header.column.getIsPinned() ? 'rotate(45deg)' : 'none',
+                  }}
+                />
+              </IconButton>
+            )}
+          </Box>
+
+          {showFilters && header.column.getCanFilter() && <ColumnFilter column={header.column} filterOptions={filterOptions} />}
+        </Box>
+      )}
       <ResizeHandle header={header} />
     </Box>
   );
@@ -847,8 +1241,20 @@ function MRTLikeTableInner<T extends object>({
   title,
   validateRow,
   onExport,
+  filterOptions,
 }: MRTLikeTableProps<T>) {
   /* ---------------- State (Centralized) ---------------- */
+  const autoFilterOptions = useMemo(() => {
+    if (!data || data.length === 0) return {};
+    return buildFilterOptionsFromData(data, columns);
+  }, [data, columns]);
+
+  const resolvedFilterOptions = useMemo(() => {
+    return {
+      ...autoFilterOptions,
+      ...filterOptions, // ✅ manual options override auto ones
+    };
+  }, [autoFilterOptions, filterOptions]);
 
   const {
     pagination,
@@ -871,6 +1277,8 @@ function MRTLikeTableInner<T extends object>({
     density,
     setDensity,
     resetState,
+    columnSizing,
+    setColumnSizing,
   } = useTableState(storageKey);
 
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
@@ -894,8 +1302,8 @@ function MRTLikeTableInner<T extends object>({
 
   /* ---------------- Columns ---------------- */
 
-  const finalColumns = useMemo<ColumnDef<T, unknown>[]>(() => {
-    const cols: ColumnDef<T, unknown>[] = [];
+  const finalColumns = useMemo<MRTLikeColumnDef<T>[]>(() => {
+    const cols: MRTLikeColumnDef<T>[] = [];
 
     // Row Numbers
     if (enableRowNumbers) {
@@ -938,29 +1346,71 @@ function MRTLikeTableInner<T extends object>({
         const isAllSelected = table.getIsAllRowsSelected();
         const isSomeSelected = table.getIsSomeRowsSelected();
         return (
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
+            <Checkbox
+              size='small'
+              indeterminate={isSomeSelected && !isAllSelected}
+              checked={isAllSelected}
+              onChange={table.getToggleAllRowsSelectedHandler()}
+              sx={{ cursor: 'pointer' }}
+            />
+          </Box>
+        );
+      },
+      cell: ({ row }) => {
+        const isSelected = row.getIsSelected();
+        const canSelect = row.getCanSelect();
+
+        return (
           <Checkbox
+            key={`checkbox-${row.id}`}
             size='small'
-            indeterminate={isSomeSelected && !isAllSelected}
-            checked={isAllSelected}
-            onChange={table.getToggleAllRowsSelectedHandler()}
+            checked={isSelected}
+            onChange={row.getToggleSelectedHandler()}
+            disabled={!canSelect}
+            sx={{ cursor: canSelect ? 'pointer' : 'default' }}
           />
         );
       },
-      cell: ({ row }) => (
-        <Checkbox size='small' checked={row.getIsSelected()} onChange={row.getToggleSelectedHandler()} disabled={!row.getCanSelect()} />
-      ),
-      size: 48,
+      size: 50,
       enableSorting: false,
       enableColumnFilter: false,
       enableHiding: false,
     });
 
-    // Actions Column
+    // Add user columns first
+    cols.push(
+      ...columns.map((col) => {
+        if (col.filterVariant === 'multi-select') {
+          const logic = col.multiSelectLogic ?? 'OR';
+
+          return {
+            ...col,
+            filterFn: ((row, columnId, value) => {
+              if (!Array.isArray(value) || value.length === 0) return true;
+
+              const cell = String(row.getValue(columnId)).toLowerCase();
+
+              return logic === 'AND'
+                ? value.every((v) => cell.includes(String(v).toLowerCase()))
+                : value.some((v) => cell === String(v).toLowerCase());
+            }) satisfies FilterFn<any>,
+          };
+        }
+
+        return {
+          ...col,
+          filterFn: col.filterVariant && filterFnByVariant[col.filterVariant] ? filterFnByVariant[col.filterVariant] : filterFnByVariant.text,
+        };
+      })
+    );
+
+    // Actions Column (moved to the end)
     if (actionMode !== 'none') {
       cols.push({
         id: '__actions__',
         header: 'Actions',
-        size: 120,
+        size: 110,
         enableSorting: false,
         enableColumnFilter: false,
         enableHiding: false,
@@ -1031,13 +1481,11 @@ function MRTLikeTableInner<T extends object>({
       });
     }
 
-    cols.push(...columns);
     return cols;
   }, [columns, actionMode, renderRowActions, renderRowActionMenuItems, enableRowNumbers, renderDetailPanel, enableExpanding]);
 
   /* ---------------- Table Instance ---------------- */
 
-  // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     data,
     columns: finalColumns,
@@ -1052,12 +1500,13 @@ function MRTLikeTableInner<T extends object>({
       rowSelection,
       grouping,
       expanded,
+      columnSizing,
     },
     defaultColumn: {
-      minSize: 40,
-      size: 150,
-      maxSize: 1000,
-      filterFn: 'includesString', // Default to string includes to avoid TanStack auto-guessing wrong types
+      minSize: 80,
+      size: 120,
+      maxSize: 280,
+      filterFn: filterFnByVariant.text,
     },
     enableRowSelection: (row) => !row.getIsGrouped(),
     getRowCanExpand: renderDetailPanel ? () => true : undefined,
@@ -1077,10 +1526,11 @@ function MRTLikeTableInner<T extends object>({
     onRowSelectionChange: setRowSelection,
     onGroupingChange: setGrouping,
     onExpandedChange: setExpanded,
+    onColumnSizingChange: setColumnSizing,
 
     enableColumnResizing,
     columnResizeMode: 'onChange',
-    globalFilterFn: 'includesString',
+    globalFilterFn: filterFnByVariant.text,
 
     meta: {
       editingRowId,
@@ -1105,21 +1555,107 @@ function MRTLikeTableInner<T extends object>({
     autoResetPageIndex: false,
   });
 
+  useEffect(() => {
+    table.setPageIndex(0);
+  }, [columnFilters, debouncedGlobalFilter]);
+
+  const previousFilters = useRef<{ cf: ColumnFiltersState; gf: string }>({
+    cf: [],
+    gf: '',
+  });
+
+  useEffect(() => {
+    const changed =
+      JSON.stringify(previousFilters.current.cf) !== JSON.stringify(columnFilters) || previousFilters.current.gf !== debouncedGlobalFilter;
+
+    if (changed) {
+      table.setPageIndex(0);
+      previousFilters.current = {
+        cf: columnFilters,
+        gf: debouncedGlobalFilter,
+      };
+    }
+  }, [columnFilters, debouncedGlobalFilter]);
+  /* ---------------- Responsive Column Sizing ---------------- */
+
+  useEffect(() => {
+    const calculateResponsiveColumnSizes = () => {
+      if (!tableContainerRef.current) return;
+
+      const containerWidth = tableContainerRef.current.clientWidth;
+      if (containerWidth <= 0) return;
+
+      const leafColumns = table.getAllLeafColumns();
+      const visibleColumns = leafColumns.filter((col) => col.getIsVisible());
+
+      // Fixed widths for action columns
+      const fixedWidths = {
+        __select__: 50,
+        __expand__: 50,
+        __row_numbers__: 50,
+        __actions__: 110,
+      };
+
+      // Calculate fixed column width
+      const fixedWidth = visibleColumns.reduce((sum, col) => {
+        return sum + (fixedWidths[col.id as keyof typeof fixedWidths] || 0);
+      }, 0);
+
+      // Calculate available width for data columns (subtract buffer for scrollbar and padding)
+      const scrollbarBuffer = 15;
+      const totalPaddingBuffer = 10;
+      const availableWidth = Math.max(containerWidth - fixedWidth - scrollbarBuffer - totalPaddingBuffer, 0);
+      const dataColumns = visibleColumns.filter((col) => !Object.keys(fixedWidths).includes(col.id));
+
+      if (dataColumns.length > 0) {
+        // Distribute available width equally among data columns
+        const columnWidth = Math.floor(availableWidth / dataColumns.length);
+        // Ensure minimum width of 75px but don't exceed 250px
+        const finalColumnWidth = Math.max(75, Math.min(columnWidth, 250));
+
+        const newSizing: ColumnSizingState = {};
+        dataColumns.forEach((col) => {
+          newSizing[col.id] = finalColumnWidth;
+        });
+
+        setColumnSizing(newSizing);
+      }
+    };
+
+    calculateResponsiveColumnSizes();
+
+    // Listen to window resize
+    const resizeObserver = new ResizeObserver(() => {
+      calculateResponsiveColumnSizes();
+    });
+
+    if (tableContainerRef.current) {
+      resizeObserver.observe(tableContainerRef.current);
+    }
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [table, setColumnSizing]);
+
   /* ---------------- Handlers ---------------- */
 
-  const handleDragEnd = React.useCallback((event: DragEndEvent) => {
-    const { active, over } = event;
-    if (active && over && active.id !== over.id) {
-      setColumnOrder((old) => {
-        const columnIds = old.length ? old : table.getAllLeafColumns().map((c) => c.id);
-        const oldIndex = columnIds.indexOf(active.id as string);
-        const newIndex = columnIds.indexOf(over.id as string);
+  const handleDragEnd = React.useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (active && over && active.id !== over.id) {
+        setColumnOrder((old) => {
+          const columnIds = old.length ? old : table.getAllLeafColumns().map((c) => c.id);
+          const oldIndex = columnIds.indexOf(active.id as string);
+          const newIndex = columnIds.indexOf(over.id as string);
 
-        if (oldIndex === -1 || newIndex === -1) return old;
-        return arrayMove(columnIds, oldIndex, newIndex);
-      });
-    }
-  }, []);
+          if (oldIndex === -1 || newIndex === -1) return old;
+          return arrayMove(columnIds, oldIndex, newIndex);
+        });
+      }
+    },
+    [setColumnOrder, table]
+  );
 
   const toggleFullScreen = React.useCallback(() => {
     if (!isFullScreen) {
@@ -1164,10 +1700,26 @@ function MRTLikeTableInner<T extends object>({
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
+  const columnOrderState = table.getState().columnOrder;
   const sortableItems = React.useMemo(
-    () => (table.getState().columnOrder.length ? table.getState().columnOrder : table.getAllLeafColumns().map((c) => c.id)),
-    [table.getState().columnOrder, table.getAllLeafColumns()],
+    () => (columnOrderState.length ? columnOrderState : table.getAllLeafColumns().map((c) => c.id)),
+    [columnOrderState, table]
   );
+
+  const hasFilters = globalFilter || (columnFilters && columnFilters.length > 0);
+
+  const filteredRowCount = table.getFilteredRowModel().rows.length;
+
+  const clearAllFilters = () => {
+    // ✅ Clear all column filters
+    table.setColumnFilters([]);
+
+    // ✅ Clear global filter
+    setGlobalFilter('');
+
+    // ✅ Reset pagination like MRT
+    table.setPageIndex(0);
+  };
 
   return (
     <Paper
@@ -1390,17 +1942,18 @@ function MRTLikeTableInner<T extends object>({
               maxHeight: isFullScreen ? 'calc(100vh - 120px)' : 550,
               position: 'relative',
               overflow: 'auto',
+              width: '100%',
+              minWidth: 0,
             }}
           >
             {/* Header */}
             <Box
               sx={{
-                display: 'block',
+                display: 'flex',
                 position: 'sticky',
                 top: 0,
                 zIndex: 10,
-                width: 'max-content',
-                minWidth: '100%',
+                width: '100%',
               }}
             >
               {table.getHeaderGroups().map((hg) => (
@@ -1408,8 +1961,7 @@ function MRTLikeTableInner<T extends object>({
                   key={hg.id}
                   sx={{
                     display: 'flex',
-                    width: 'max-content',
-                    minWidth: '100%',
+                    width: '100%',
                   }}
                 >
                   {hg.headers.map((header) => (
@@ -1421,6 +1973,7 @@ function MRTLikeTableInner<T extends object>({
                       enableColumnPinning={enableColumnPinning}
                       enableGrouping={enableGrouping}
                       showFilters={showFilters}
+                      filterOptions={resolvedFilterOptions}
                       columnVisibility={columnVisibility}
                       isAllSelected={table.getIsAllRowsSelected()}
                       isSomeSelected={table.getIsSomeRowsSelected()}
@@ -1432,59 +1985,68 @@ function MRTLikeTableInner<T extends object>({
             </Box>
 
             {/* Body */}
+            {!loading && filteredRowCount === 0 && (
+              <Box sx={{ p: 4, textAlign: 'center', width: '100%' }}>
+                <Box sx={{ textAlign: 'center' }}>
+                  <Typography variant='body1'>{hasFilters ? 'No results match your filters' : 'No records found'}</Typography>
+
+                  {hasFilters && (
+                    <Box sx={{ mt: 2 }}>
+                      <IconButton color='primary' onClick={clearAllFilters}>
+                        <RestartAlt />
+                      </IconButton>
+                      <Typography variant='caption'>Clear all filters</Typography>
+                    </Box>
+                  )}
+                </Box>
+              </Box>
+            )}
+
             <Box
               sx={{
                 display: 'block',
                 height: `${rowVirtualizer.getTotalSize()}px`,
-                width: 'max-content',
-                minWidth: '100%',
+                width: '100%',
                 position: 'relative',
               }}
             >
-              {loading ? (
-                Array.from({ length: 5 }).map((_, i) => (
-                  <Box key={i} sx={{ display: 'flex' }}>
-                    {table.getVisibleLeafColumns().map((c) => (
-                      <Box key={c.id} sx={{ p: 1, width: c.getSize() }}>
-                        <Skeleton variant='text' />
-                      </Box>
-                    ))}
-                  </Box>
-                ))
-              ) : rows.length === 0 ? (
-                <Box sx={{ p: 4, textAlign: 'center' }}>
-                  <Typography variant='body1' color='text.secondary'>
-                    No records found
-                  </Typography>
-                </Box>
-              ) : (
-                rowVirtualizer.getVirtualItems().map((virtualRow) => {
-                  const row = rows[virtualRow.index];
-                  return (
-                    <MRTLikeTableRow
-                      key={row.id}
-                      ref={rowVirtualizer.measureElement}
-                      virtualIndex={virtualRow.index}
-                      row={row}
-                      density={density}
-                      isSelected={row.getIsSelected()}
-                      enableClickToCopy={enableClickToCopy}
-                      editingRowId={editingRowId}
-                      editValues={editValues}
-                      onEditChange={(col, val) => setEditValues((prev) => ({ ...prev, [col]: val }))}
-                      columnSizing={table.getState().columnSizing}
-                      renderDetailPanel={renderDetailPanel}
-                      style={{
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        width: '100%',
-                        transform: `translateY(${virtualRow.start}px)`,
-                      }}
-                    />
-                  );
-                })
-              )}
+              {loading
+                ? Array.from({ length: 5 }).map((_, i) => (
+                    <Box key={i} sx={{ display: 'flex', width: '100%' }}>
+                      {table.getVisibleLeafColumns().map((c) => (
+                        <Box key={c.id} sx={{ p: 1, width: c.getSize(), minWidth: c.getSize() }}>
+                          <Skeleton variant='text' />
+                        </Box>
+                      ))}
+                    </Box>
+                  ))
+                : rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                    const row = rows[virtualRow.index];
+                    return (
+                      <MRTLikeTableRow
+                        key={row.id}
+                        ref={rowVirtualizer.measureElement}
+                        virtualIndex={virtualRow.index}
+                        row={row}
+                        density={density}
+                        isSelected={row.getIsSelected()}
+                        enableClickToCopy={enableClickToCopy}
+                        editingRowId={editingRowId}
+                        editValues={editValues}
+                        onEditChange={(col, val) => setEditValues((prev) => ({ ...prev, [col]: val }))}
+                        columnSizing={table.getState().columnSizing}
+                        renderDetailPanel={renderDetailPanel}
+                        rowSelection={rowSelection}
+                        style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          width: '100%',
+                          transform: `translateY(${virtualRow.start}px)`,
+                        }}
+                      />
+                    );
+                  })}
             </Box>
           </Box>
         </SortableContext>
