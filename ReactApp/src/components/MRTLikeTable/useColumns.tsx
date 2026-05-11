@@ -54,16 +54,18 @@ export function useColumns<T extends object>({
         enableColumnFilter: false,
         enableHiding: false,
         cell: ({ row }) => (
-          <IconButton
-            size='small'
-            onClick={row.getToggleExpandedHandler()}
-            sx={{
-              transform: row.getIsExpanded() ? 'rotate(180deg)' : 'rotate(0deg)',
-              transition: 'transform 0.2s',
-            }}
-          >
-            <KeyboardArrowDown fontSize='small' />
-          </IconButton>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
+            <IconButton
+              size='small'
+              onClick={row.getToggleExpandedHandler()}
+              sx={{
+                transform: row.getIsExpanded() ? 'rotate(180deg)' : 'rotate(0deg)',
+                transition: 'transform 0.2s',
+              }}
+            >
+              <KeyboardArrowDown fontSize='small' />
+            </IconButton>
+          </Box>
         ),
       });
     }
@@ -94,14 +96,16 @@ export function useColumns<T extends object>({
         const sel = row.getIsSelected();
         const can = row.getCanSelect();
         return (
-          <Checkbox
-            key={`cb-${row.id}`}
-            size='small'
-            checked={sel}
-            onChange={row.getToggleSelectedHandler()}
-            disabled={!can}
-            sx={{ cursor: can ? 'pointer' : 'default' }}
-          />
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
+            <Checkbox
+              key={`cb-${row.id}`}
+              size='small'
+              checked={sel}
+              onChange={row.getToggleSelectedHandler()}
+              disabled={!can}
+              sx={{ cursor: can ? 'pointer' : 'default' }}
+            />
+          </Box>
         );
       },
     });
@@ -185,7 +189,7 @@ export function useColumns<T extends object>({
           }
 
           return (
-            <Box sx={{ display: 'flex', gap: 0.5 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', gap: 0.5 }}>
               {enableEditing && (
                 <Tooltip title='Edit'>
                   <IconButton

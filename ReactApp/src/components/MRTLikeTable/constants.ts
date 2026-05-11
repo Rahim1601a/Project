@@ -34,9 +34,9 @@ export const ROW_HEIGHTS: Record<string, number> = {
 
 /** Cell padding by density */
 export const CELL_PADDING: Record<string, { action: string; data: string }> = {
-  small: { action: '0 2px', data: '2px 4px' },
-  medium: { action: '0 4px', data: '4px 6px' },
-  large: { action: '0 6px', data: '6px 8px' },
+  small: { action: '0', data: '4px 12px' },
+  medium: { action: '0', data: '8px 16px' },
+  large: { action: '0', data: '12px 20px' },
 } as const;
 
 /** Virtualizer overscan rows */

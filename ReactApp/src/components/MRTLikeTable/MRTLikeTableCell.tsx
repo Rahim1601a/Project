@@ -62,7 +62,7 @@ export const MRTLikeTableCell = memo(function MRTLikeTableCell({
   const isAggregated = cell.getIsAggregated();
 
   const handleCopy = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
-    if (!enableClickToCopy || isEditing) return;
+    if (!enableClickToCopy || isEditing || isActionCell) return;
     const target = event.target as HTMLElement;
     if (target.closest('input,button,textarea,select,label,[role="button"],[role="checkbox"]')) return;
     const text = cell.getValue()?.toString() || '';
@@ -147,12 +147,16 @@ export const MRTLikeTableCell = memo(function MRTLikeTableCell({
 
     if (isPlaceholder) return null;
 
+    if (isActionCell) {
+      return flexRender(cell.column.columnDef.cell, cell.getContext());
+    }
+
     return (
       <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', gap: 0.5 }}>
-        <Box sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <Box sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexGrow: 1 }}>
           {flexRender(cell.column.columnDef.cell, cell.getContext())}
         </Box>
-        {enableClickToCopy && (
+        {enableClickToCopy && !isActionCell && (
           <ContentCopy
             sx={{
               ml: 'auto',
@@ -197,8 +201,8 @@ export const MRTLikeTableCell = memo(function MRTLikeTableCell({
         boxSizing: 'border-box',
         overflow: 'hidden',
         height: '100%',
-        cursor: enableClickToCopy && !isEditing ? 'copy' : 'default',
-        '&:hover': enableClickToCopy && !isEditing ? { bgcolor: alpha('#000', 0.02) } : {},
+        cursor: enableClickToCopy && !isEditing && !isActionCell ? 'copy' : 'default',
+        '&:hover': enableClickToCopy && !isEditing && !isActionCell ? { bgcolor: alpha('#000', 0.02) } : {},
       }}
       onClick={handleCopy}
     >

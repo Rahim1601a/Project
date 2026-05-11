@@ -154,6 +154,7 @@ export const MRTLikeTableHeaderCell = memo(function MRTLikeTableHeaderCell({
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'center',
+        alignItems: isActionColumn ? 'center' : 'flex-start',
         boxSizing: 'border-box',
         overflow: 'hidden',
         borderBottom: '2px solid',
