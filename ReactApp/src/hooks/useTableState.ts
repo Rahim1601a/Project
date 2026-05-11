@@ -6,6 +6,7 @@ import type {
   VisibilityState,
   ColumnOrderState,
   ColumnPinningState,
+  ColumnSizingState,
   GroupingState,
 } from '@tanstack/react-table';
 
@@ -15,6 +16,7 @@ export interface TablePersistenceState {
   columnVisibility?: VisibilityState;
   columnOrder?: ColumnOrderState;
   columnPinning?: ColumnPinningState;
+  columnSizing?: ColumnSizingState;
   grouping?: GroupingState;
   density?: 'small' | 'medium' | 'large';
 }
@@ -33,6 +35,7 @@ export function useTableState(storageKey: string) {
           columnVisibility: parsed.columnVisibility,
           columnOrder: parsed.columnOrder,
           columnPinning: parsed.columnPinning,
+          columnSizing: parsed.columnSizing,
           grouping: parsed.grouping,
           density: parsed.density,
         };
@@ -57,6 +60,7 @@ export function useTableState(storageKey: string) {
   const [columnPinning, setColumnPinning] = useState<ColumnPinningState>(
     initialData.columnPinning ?? { left: ['__select__', '__actions__'], right: [] },
   );
+  const [columnSizing, setColumnSizing] = useState<ColumnSizingState>(initialData.columnSizing ?? {});
   const [grouping, setGrouping] = useState<GroupingState>(initialData.grouping ?? []);
   const [density, setDensity] = useState<'small' | 'medium' | 'large'>(initialData.density ?? 'small');
 
@@ -76,11 +80,12 @@ export function useTableState(storageKey: string) {
       columnVisibility,
       columnOrder,
       columnPinning,
+      columnSizing,
       grouping,
       density,
     };
     localStorage.setItem(storageKey, JSON.stringify(stateToSave));
-  }, [storageKey, pagination, sorting, columnVisibility, columnOrder, columnPinning, grouping, density]);
+  }, [storageKey, pagination, sorting, columnVisibility, columnOrder, columnPinning, columnSizing, grouping, density]);
 
   const resetState = useCallback(() => {
     setPagination({ pageIndex: 0, pageSize: 10 });
@@ -90,6 +95,7 @@ export function useTableState(storageKey: string) {
     setColumnVisibility({});
     setColumnOrder([]);
     setColumnPinning({ left: ['__select__', '__actions__'], right: [] });
+    setColumnSizing({});
     setGrouping([]);
     setDensity('small');
     localStorage.removeItem(storageKey);
@@ -115,6 +121,8 @@ export function useTableState(storageKey: string) {
     setGrouping,
     density,
     setDensity,
+    columnSizing,
+    setColumnSizing,
     resetState,
   };
 }

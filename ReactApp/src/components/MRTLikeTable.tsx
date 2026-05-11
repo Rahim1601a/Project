@@ -83,7 +83,7 @@ import { DndContext, PointerSensor, useSensor, useSensors, closestCenter, type D
 import { SortableContext, horizontalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
 
 import { CSS } from '@dnd-kit/utilities';
-import { useTableState } from '@/hooks/useTableState';
+import { useTableState } from '../hooks/useTableState';
 
 /* =========================================================
    Types
@@ -286,7 +286,7 @@ function exportCSV<T extends object>(rows: T[], table: any, file = 'export.csv')
           const val = (row as any)[c.id] ?? '';
           return `"${val.toString().replace(/"/g, '""')}"`;
         })
-        .join(',')
+        .join(','),
     )
     .join('\n');
   const blob = new Blob([`${header}\n${body}`], {
@@ -610,7 +610,7 @@ const ColumnFilter = React.memo(function ColumnFilter({
   // AUTOCOMPLETE FILTER
   if (variant === 'autocomplete') {
     const options = columnFilterOptions.map((opt: string | { label?: string; value: any }) =>
-      typeof opt === 'string' ? { label: opt, value: opt } : opt
+      typeof opt === 'string' ? { label: opt, value: opt } : opt,
     );
     return (
       <Autocomplete
@@ -710,7 +710,7 @@ const ColumnFilter = React.memo(function ColumnFilter({
   // MULTI-SELECT FILTER
   if (variant === 'multi-select') {
     const options = columnFilterOptions.map((opt: string | { label?: string; value: any }) =>
-      typeof opt === 'string' ? { label: opt, value: opt } : opt
+      typeof opt === 'string' ? { label: opt, value: opt } : opt,
     );
     const selectedValues = (localValue as string[]) ?? [];
     const selectedOptions = options.filter((opt: { label?: string; value: any }) => selectedValues.includes(opt.value));
@@ -1009,7 +1009,7 @@ const MRTLikeTableRow = memo(
       virtualIndex: number;
       rowSelection?: Record<string, boolean>;
     },
-    ref: any
+    ref: any,
   ) {
     const isEditing = editingRowId === row.id;
 
@@ -1053,7 +1053,7 @@ const MRTLikeTableRow = memo(
         )}
       </Box>
     );
-  })
+  }),
 );
 
 const MRTLikeTableHeaderCell = memo(function MRTLikeTableHeaderCell({
@@ -1402,7 +1402,7 @@ function MRTLikeTableInner<T extends object>({
           ...col,
           filterFn: col.filterVariant && filterFnByVariant[col.filterVariant] ? filterFnByVariant[col.filterVariant] : filterFnByVariant.text,
         };
-      })
+      }),
     );
 
     // Actions Column (moved to the end)
@@ -1654,7 +1654,7 @@ function MRTLikeTableInner<T extends object>({
         });
       }
     },
-    [setColumnOrder, table]
+    [setColumnOrder, table],
   );
 
   const toggleFullScreen = React.useCallback(() => {
@@ -1703,7 +1703,7 @@ function MRTLikeTableInner<T extends object>({
   const columnOrderState = table.getState().columnOrder;
   const sortableItems = React.useMemo(
     () => (columnOrderState.length ? columnOrderState : table.getAllLeafColumns().map((c) => c.id)),
-    [columnOrderState, table]
+    [columnOrderState, table],
   );
 
   const hasFilters = globalFilter || (columnFilters && columnFilters.length > 0);
@@ -1711,14 +1711,14 @@ function MRTLikeTableInner<T extends object>({
   const filteredRowCount = table.getFilteredRowModel().rows.length;
 
   const clearAllFilters = () => {
-    // ✅ Clear all column filters
-    table.setColumnFilters([]);
+    // ✅ Clear all column filters via state
+    setColumnFilters([]);
 
-    // ✅ Clear global filter
+    // ✅ Clear global filter via state
     setGlobalFilter('');
 
     // ✅ Reset pagination like MRT
-    table.setPageIndex(0);
+    setPagination((prev: any) => ({ ...prev, pageIndex: 0 }));
   };
 
   return (
