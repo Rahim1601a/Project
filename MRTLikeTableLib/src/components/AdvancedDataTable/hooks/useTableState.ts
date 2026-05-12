@@ -53,6 +53,8 @@ export interface TablePersistenceState {
 export interface UseTableStateOptions {
   /** Override the default localStorage persistence adapter */
   adapter?: PersistenceAdapter;
+  /** Whether to enable persistence */
+  enabled?: boolean;
   /** Callback triggered whenever the persisted state changes */
   onStateChange?: (state: TablePersistenceState) => void;
 }
@@ -73,9 +75,11 @@ const DEFAULT_DENSITY: 'small' | 'medium' | 'large' = 'small';
 export function useTableState(storageKey: string, options?: UseTableStateOptions) {
   const adapter = options?.adapter ?? localStorageAdapter;
   const onStateChange = options?.onStateChange;
+  const enabled = options?.enabled ?? false;
 
   // 1. Load initial state from storage ONCE
   const [initialData] = useState<TablePersistenceState>(() => {
+    if (!enabled) return {};
     const raw = adapter.getItem(storageKey);
     if (raw) {
       try {
@@ -130,6 +134,7 @@ export function useTableState(storageKey: string, options?: UseTableStateOptions
 
   // 4. Persistence Effect (Excluding filters)
   useEffect(() => {
+    if (!enabled) return;
     const stateToSave: TablePersistenceState = {
       _version: SCHEMA_VERSION,
       pagination,
@@ -143,7 +148,7 @@ export function useTableState(storageKey: string, options?: UseTableStateOptions
     };
     adapter.setItem(storageKey, JSON.stringify(stateToSave));
     onStateChange?.(stateToSave);
-  }, [storageKey, adapter, onStateChange, pagination, sorting, columnVisibility, columnOrder, columnPinning, columnSizing, grouping, density]);
+  }, [storageKey, adapter, enabled, onStateChange, pagination, sorting, columnVisibility, columnOrder, columnPinning, columnSizing, grouping, density]);
 
   const resetState = useCallback(() => {
     setPagination(DEFAULT_PAGINATION);
@@ -157,8 +162,10 @@ export function useTableState(storageKey: string, options?: UseTableStateOptions
     setColumnSizing({});
     setGrouping([]);
     setDensity(DEFAULT_DENSITY);
-    adapter.removeItem(storageKey);
-  }, [storageKey, adapter]);
+    if (enabled) {
+      adapter.removeItem(storageKey);
+    }
+  }, [storageKey, adapter, enabled]);
 
   return {
     pagination,

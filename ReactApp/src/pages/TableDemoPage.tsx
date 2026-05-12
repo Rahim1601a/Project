@@ -184,6 +184,7 @@ const TableDemoPage: React.FC = () => {
       </Box>
 
       <AdvancedDataTable
+        isStorage={true}
         title='Employee Directory'
         columns={columns}
         data={data}

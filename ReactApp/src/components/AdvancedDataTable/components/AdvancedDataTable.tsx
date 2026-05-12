@@ -102,6 +102,7 @@ function AdvancedDataTableInner<T extends object>({
   onRowSave,
   renderTopToolbarCustomActions,
   renderBottomToolbarCustomActions,
+  isStorage = false,
   storageKey = 'AdvancedDataTableState',
   title,
   validateRow,
@@ -118,7 +119,7 @@ function AdvancedDataTableInner<T extends object>({
       ...autoFilterOptions,
       ...filterOptions,
     }),
-    [autoFilterOptions, filterOptions]
+    [autoFilterOptions, filterOptions],
   );
 
   const {
@@ -144,7 +145,7 @@ function AdvancedDataTableInner<T extends object>({
     resetState,
     columnSizing,
     setColumnSizing,
-  } = useTableState(storageKey);
+  } = useTableState(storageKey, { enabled: isStorage });
 
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [expanded, setExpanded] = useState<ExpandedState>({});
@@ -211,12 +212,15 @@ function AdvancedDataTableInner<T extends object>({
       expanded,
       columnSizing,
     },
-    defaultColumn: useMemo(() => ({
-      minSize: COLUMN_DEFAULTS.minSize,
-      size: COLUMN_DEFAULTS.size,
-      maxSize: COLUMN_DEFAULTS.maxSize,
-      filterFn: filterFnByVariant.text,
-    }), []),
+    defaultColumn: useMemo(
+      () => ({
+        minSize: COLUMN_DEFAULTS.minSize,
+        size: COLUMN_DEFAULTS.size,
+        maxSize: COLUMN_DEFAULTS.maxSize,
+        filterFn: filterFnByVariant.text,
+      }),
+      [],
+    ),
     enableRowSelection: enableRowSelection ? (row) => !row.getIsGrouped() : false,
     getRowCanExpand: renderDetailPanel ? () => true : undefined,
     enableGrouping: true,
@@ -241,17 +245,20 @@ function AdvancedDataTableInner<T extends object>({
     enableColumnResizing,
     columnResizeMode: 'onChange',
     globalFilterFn: filterFnByVariant.text,
-    meta: useMemo(() => ({ 
-      editingRowId, 
-      setEditingRowId, 
-      editValues, 
-      setEditValues, 
-      onRowSave, 
-      enableEditing, 
-      validateRow, 
-      rowErrors, 
-      setRowErrors 
-    }), [editingRowId, editValues, onRowSave, enableEditing, validateRow, rowErrors]),
+    meta: useMemo(
+      () => ({
+        editingRowId,
+        setEditingRowId,
+        editValues,
+        setEditValues,
+        onRowSave,
+        enableEditing,
+        validateRow,
+        rowErrors,
+        setRowErrors,
+      }),
+      [editingRowId, editValues, onRowSave, enableEditing, validateRow, rowErrors],
+    ),
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -317,7 +324,7 @@ function AdvancedDataTableInner<T extends object>({
       if (dataColumns.length > 0) {
         const columnWidth = Math.max(
           COLUMN_DEFAULTS.responsiveMin,
-          Math.min(Math.floor(availableWidth / dataColumns.length), COLUMN_DEFAULTS.responsiveMax)
+          Math.min(Math.floor(availableWidth / dataColumns.length), COLUMN_DEFAULTS.responsiveMax),
         );
 
         const currentSizing = currentTable.getState().columnSizing;
@@ -363,7 +370,7 @@ function AdvancedDataTableInner<T extends object>({
         });
       }
     },
-    [setColumnOrder, table]
+    [setColumnOrder, table],
   );
 
   const toggleFullScreen = useCallback(() => {
@@ -381,7 +388,7 @@ function AdvancedDataTableInner<T extends object>({
     (type: 'csv' | 'xlsx' | 'pdf', selectionMode: 'all' | 'page' | 'selected') => {
       onExport?.({ type, selectionMode, sorting, columnFilters, globalFilter: debouncedGlobalFilter, selectedRowIds });
     },
-    [onExport, sorting, columnFilters, debouncedGlobalFilter, selectedRowIds]
+    [onExport, sorting, columnFilters, debouncedGlobalFilter, selectedRowIds],
   );
 
   const [visibilityAnchor, setVisibilityAnchor] = useState<HTMLElement | null>(null);
@@ -391,13 +398,13 @@ function AdvancedDataTableInner<T extends object>({
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: 5 },
-    })
+    }),
   );
 
   const columnOrderState = table.getState().columnOrder;
   const sortableItems = useMemo(
     () => (columnOrderState.length ? columnOrderState : table.getAllLeafColumns().map((c) => c.id)),
-    [columnOrderState, table]
+    [columnOrderState, table],
   );
 
   const hasFilters = globalFilter || (columnFilters && columnFilters.length > 0);

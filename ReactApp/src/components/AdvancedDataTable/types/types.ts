@@ -64,6 +64,7 @@ export type AdvancedDataTableProps<T extends object> = {
   renderTopToolbarCustomActions?: (table: any) => React.ReactNode;
   renderBottomToolbarCustomActions?: (table: any) => React.ReactNode;
 
+  isStorage?: boolean;
   storageKey?: string;
   title?: string;
 

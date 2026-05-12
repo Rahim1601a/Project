@@ -102,6 +102,7 @@ function AdvancedDataTableInner<T extends object>({
   onRowSave,
   renderTopToolbarCustomActions,
   renderBottomToolbarCustomActions,
+  isStorage = false,
   storageKey = 'AdvancedDataTableState',
   title,
   validateRow,
@@ -144,7 +145,7 @@ function AdvancedDataTableInner<T extends object>({
     resetState,
     columnSizing,
     setColumnSizing,
-  } = useTableState(storageKey);
+  } = useTableState(storageKey, { enabled: isStorage });
 
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [expanded, setExpanded] = useState<ExpandedState>({});
