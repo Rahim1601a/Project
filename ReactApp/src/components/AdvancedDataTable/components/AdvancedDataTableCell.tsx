@@ -1,6 +1,6 @@
 import React, { memo, useCallback, useMemo } from 'react';
-import { Box, TextField, IconButton } from '@mui/material';
-import { KeyboardArrowDown, KeyboardArrowRight, ContentCopy } from '@mui/icons-material';
+import { Box, TextField, IconButton, Typography } from '@mui/material';
+import { KeyboardArrowDown, ContentCopy, GroupWork } from '@mui/icons-material';
 import { flexRender } from '@tanstack/react-table';
 import { CELL_PADDING, ROW_HEIGHTS, SYSTEM_COLUMN_IDS } from '../utils/constants';
 
@@ -52,6 +52,8 @@ export const AdvancedDataTableCell = memo(function AdvancedDataTableCell({
   const isPlaceholder = cell.getIsPlaceholder();
   const isAggregated = cell.getIsAggregated();
 
+  const isActionCell = SYSTEM_COLUMN_IDS.includes(cell.column.id);
+
   const handleCopy = useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
       if (!enableClickToCopy || isEditing || isActionCell) return;
@@ -59,8 +61,9 @@ export const AdvancedDataTableCell = memo(function AdvancedDataTableCell({
       if (target.closest('input,button,textarea,select,label,[role="button"],[role="checkbox"]')) return;
       const text = cell.getValue()?.toString() || '';
       navigator.clipboard.writeText(text);
+      window.dispatchEvent(new CustomEvent('table-copy', { detail: text }));
     },
-    [enableClickToCopy, isEditing, cell]
+    [enableClickToCopy, isEditing, isActionCell, cell]
   );
 
   const renderContent = () => {
@@ -127,18 +130,23 @@ export const AdvancedDataTableCell = memo(function AdvancedDataTableCell({
 
     if (isGrouped) {
       return (
-        <Box sx={{ display: 'flex', alignItems: 'center', height: '100%', gap: 1 }}>
-          <IconButton
-            size='small'
-            onClick={(e) => {
-              e.stopPropagation();
-              cell.row.getToggleExpandedHandler()();
-            }}
-            sx={{ p: 0 }}
-          >
-            {cell.row.getIsExpanded() ? <KeyboardArrowDown fontSize='small' /> : <KeyboardArrowRight fontSize='small' />}
+        <Box sx={{ display: 'flex', alignItems: 'center', height: '100%', gap: 1.5 }}>
+          <IconButton size='small' onClick={cell.row.getToggleExpandedHandler()} sx={{ p: 0.5 }}>
+            <KeyboardArrowDown
+              fontSize='small'
+              sx={{
+                transform: cell.row.getIsExpanded() ? 'rotate(0deg)' : 'rotate(-90deg)',
+                transition: 'transform 0.2s',
+              }}
+            />
           </IconButton>
-          {flexRender(cell.column.columnDef.cell, cell.getContext())} ({cell.row.subRows?.length ?? 0})
+          <GroupWork fontSize='small' color='action' />
+          <Typography variant='body2' sx={{ fontWeight: 600 }}>
+            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+          </Typography>
+          <Typography variant='caption' color='text.secondary'>
+            ({cell.row.subRows?.length ?? 0} items)
+          </Typography>
         </Box>
       );
     }
@@ -163,7 +171,6 @@ export const AdvancedDataTableCell = memo(function AdvancedDataTableCell({
             height: '100%',
             display: 'flex',
             alignItems: 'center',
-             transition: 'width 120ms ease-out',
           }}
         >
           {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -184,23 +191,22 @@ export const AdvancedDataTableCell = memo(function AdvancedDataTableCell({
     );
   };
 
-  const isActionCell = SYSTEM_COLUMN_IDS.includes(cell.column.id);
   const padding = CELL_PADDING[density] ?? CELL_PADDING.small;
   const cellPadding = isActionCell ? padding.action : padding.data;
 
   /** Memoize inline styles to avoid object re-creation */
   const inlineStyle = useMemo(
     () => ({
-      flexBasis: cell.column.getSize(), // ✅ ALLOW STRETCH
+      flexBasis: cell.column.getSize(),
       width: cell.column.getSize(),
       minWidth: cell.column.getSize(),
-      maxWidth: cell.column.getSize(),
+      flexShrink: 0,
 
       position: (isPinned ? 'sticky' : 'relative') as React.CSSProperties['position'],
       left: isPinned === 'left' ? cell.column.getStart('left') : undefined,
       right: isPinned === 'right' ? cell.column.getAfter('right') : undefined,
     }),
-    [cell.column, isPinned]
+    [cell.column, cell.column.getSize(), isPinned]
   );
 
   return (

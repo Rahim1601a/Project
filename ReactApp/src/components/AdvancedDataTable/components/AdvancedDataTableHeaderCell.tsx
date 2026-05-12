@@ -1,5 +1,5 @@
-import React, { memo } from 'react';
-import { Box, Typography, IconButton } from '@mui/material';
+import React, { memo, useState } from 'react';
+import { Box, Typography, IconButton, Menu, MenuItem, ListItemIcon, ListItemText } from '@mui/material';
 import { PushPin, ViewModule } from '@mui/icons-material';
 import type { VisibilityState } from '@tanstack/react-table';
 import { flexRender } from '@tanstack/react-table';
@@ -82,7 +82,7 @@ const ResizeHandle = memo(function ResizeHandle({ header }: { header: any }) {
         position: 'absolute',
         right: 0,
         top: 0,
-        width: 6,
+        width: 10,
         height: '100%',
         cursor: 'col-resize',
         userSelect: 'none',
@@ -119,12 +119,16 @@ export const AdvancedDataTableHeaderCell = memo(function AdvancedDataTableHeader
   columnSizing: any;
   filterOptions?: Record<string, Array<string | { label?: string; value: any }>>;
 }) {
+  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const handleOpen = (event: React.MouseEvent<HTMLElement>) => setAnchorEl(event.currentTarget);
+  const handleClose = () => setAnchorEl(null);
+
   const isPinned = header.column.getIsPinned();
   const style: React.CSSProperties = {
-    flexBasis: header.getSize(), // ✅ REQUIRED
+    flexBasis: header.getSize(),
     width: header.getSize(),
     minWidth: header.getSize(),
-    maxWidth: header.getSize(),
+    flexShrink: 0,
 
     position: isPinned ? 'sticky' : 'relative',
     left: isPinned === 'left' ? header.column.getStart('left') : undefined,
@@ -154,7 +158,6 @@ export const AdvancedDataTableHeaderCell = memo(function AdvancedDataTableHeader
         borderColor: 'divider',
         fontWeight: isActionColumn ? 'normal' : 'bold',
         bgcolor: 'background.paper',
-        transition: 'width 120ms ease-out',
       }}
     >
       {isActionColumn ? (
@@ -217,22 +220,39 @@ export const AdvancedDataTableHeaderCell = memo(function AdvancedDataTableHeader
             )}
 
             {enableColumnPinning && !header.column.id.startsWith('__') && (
-              <IconButton
-                size='small'
-                onClick={() => header.column.pin(header.column.getIsPinned() ? false : 'left')}
-                sx={{
-                  ml: 'auto',
-                  opacity: header.column.getIsPinned() ? 1 : 0.3,
-                  '&:hover': { opacity: 1 },
-                }}
-              >
-                <PushPin
-                  sx={{
-                    fontSize: '0.9rem',
-                    transform: header.column.getIsPinned() ? 'rotate(45deg)' : 'none',
-                  }}
-                />
-              </IconButton>
+              <>
+                <IconButton
+                  size='small'
+                  onClick={handleOpen}
+                  sx={{ ml: 'auto', opacity: header.column.getIsPinned() ? 1 : 0.3, '&:hover': { opacity: 1 } }}
+                >
+                  <PushPin sx={{ fontSize: '0.9rem', transform: header.column.getIsPinned() ? 'rotate(45deg)' : 'none' }} />
+                </IconButton>
+                <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={handleClose}>
+                  <MenuItem
+                    onClick={() => {
+                      header.column.pin(header.column.getIsPinned() === 'left' ? false : 'left');
+                      handleClose();
+                    }}
+                  >
+                    <ListItemIcon>
+                      <PushPin fontSize='small' />
+                    </ListItemIcon>
+                    <ListItemText>{header.column.getIsPinned() === 'left' ? 'Unpin' : 'Pin Left'}</ListItemText>
+                  </MenuItem>
+                  <MenuItem
+                    onClick={() => {
+                      header.column.pin(header.column.getIsPinned() === 'right' ? false : 'right');
+                      handleClose();
+                    }}
+                  >
+                    <ListItemIcon>
+                      <PushPin fontSize='small' />
+                    </ListItemIcon>
+                    <ListItemText>{header.column.getIsPinned() === 'right' ? 'Unpin' : 'Pin Right'}</ListItemText>
+                  </MenuItem>
+                </Menu>
+              </>
             )}
           </Box>
 

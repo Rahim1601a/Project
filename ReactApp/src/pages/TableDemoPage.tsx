@@ -199,6 +199,7 @@ const TableDemoPage: React.FC = () => {
         enableRowNumbers
         enableClickToCopy
         enableEditing
+        enableColumnResizing
         onRowSave={handleSaveRow}
         renderDetailPanel={({ row }) => (
           <Box sx={{ p: 2, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>

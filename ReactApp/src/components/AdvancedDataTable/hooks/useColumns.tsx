@@ -42,7 +42,10 @@ export function useColumns<T extends object>({
         enableSorting: false,
         enableColumnFilter: false,
         enableHiding: false,
-        cell: ({ row }) => row.index + 1,
+        cell: ({ row, table }) => {
+          const { pageIndex, pageSize } = table.getState().pagination;
+          return row.index + 1 + pageIndex * pageSize;
+        },
       });
     }
 
@@ -144,7 +147,7 @@ export function useColumns<T extends object>({
           ...col,
           filterFn: col.filterVariant && filterFnByVariant[col.filterVariant] ? filterFnByVariant[col.filterVariant] : filterFnByVariant.text,
         };
-      })
+      }),
     );
 
     // 5. Actions Column

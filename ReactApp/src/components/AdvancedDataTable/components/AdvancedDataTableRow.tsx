@@ -49,7 +49,7 @@ function rowAreEqual(prev: AdvancedDataTableRowProps, next: AdvancedDataTableRow
 export const AdvancedDataTableRow = memo(
   React.forwardRef<HTMLDivElement, AdvancedDataTableRowProps>(function AdvancedDataTableRow(
     { row, density, isSelected, isExpanded, enableClickToCopy, editingRowId, editValues, style, columnSizing, renderDetailPanel, virtualIndex },
-    ref
+    ref,
   ) {
     const isEditing = editingRowId === row.id;
 
@@ -65,9 +65,9 @@ export const AdvancedDataTableRow = memo(
           width: '100%',
           minWidth: 'max-content',
 
-          height: ROW_HEIGHTS[density], // ✅ HARD ROW HEIGHT
+          height: isExpanded ? 'auto' : ROW_HEIGHTS[density],
           minHeight: ROW_HEIGHTS[density],
-          maxHeight: ROW_HEIGHTS[density],
+          maxHeight: isExpanded ? 'none' : ROW_HEIGHTS[density],
 
           boxSizing: 'border-box',
           bgcolor: isEditing ? alpha('#000', 0.03) : row.getIsGrouped() ? alpha('#000', 0.02) : 'transparent',
@@ -98,5 +98,5 @@ export const AdvancedDataTableRow = memo(
       </Box>
     );
   }),
-  rowAreEqual
+  rowAreEqual,
 );

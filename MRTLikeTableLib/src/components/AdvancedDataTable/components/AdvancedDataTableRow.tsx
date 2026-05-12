@@ -65,9 +65,9 @@ export const AdvancedDataTableRow = memo(
           width: '100%',
           minWidth: 'max-content',
 
-          height: ROW_HEIGHTS[density], // ✅ HARD ROW HEIGHT
+          height: isExpanded ? 'auto' : ROW_HEIGHTS[density],
           minHeight: ROW_HEIGHTS[density],
-          maxHeight: ROW_HEIGHTS[density],
+          maxHeight: isExpanded ? 'none' : ROW_HEIGHTS[density],
 
           boxSizing: 'border-box',
           bgcolor: isEditing ? alpha('#000', 0.03) : row.getIsGrouped() ? alpha('#000', 0.02) : 'transparent',

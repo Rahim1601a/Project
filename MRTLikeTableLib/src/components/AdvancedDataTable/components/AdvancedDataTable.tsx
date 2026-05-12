@@ -33,6 +33,7 @@ import {
   ListItemText,
   InputAdornment,
   Skeleton,
+  Snackbar,
 } from '@mui/material';
 import {
   DensitySmall,
@@ -117,7 +118,7 @@ function AdvancedDataTableInner<T extends object>({
       ...autoFilterOptions,
       ...filterOptions,
     }),
-    [autoFilterOptions, filterOptions]
+    [autoFilterOptions, filterOptions],
   );
 
   const {
@@ -152,9 +153,27 @@ function AdvancedDataTableInner<T extends object>({
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<Record<string, any>>({});
   const [rowErrors, setRowErrors] = useState<AdvancedDataTableValidationErrors<T>>(null);
+  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string }>({ open: false, message: '' });
+
+  // Listen for copy events from cells
+  useEffect(() => {
+    const handleCopyNotify = (e: any) => {
+      setSnackbar({ open: true, message: `Copied: ${e.detail}` });
+    };
+    window.addEventListener('table-copy', handleCopyNotify);
+    return () => window.removeEventListener('table-copy', handleCopyNotify);
+  }, []);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const tableContainerRef = useRef<HTMLDivElement>(null);
+  const isManualResized = useRef(Object.keys(columnSizing).length > 0);
+
+  // Sync ref with state if it becomes empty (e.g. on Reset)
+  useEffect(() => {
+    if (Object.keys(columnSizing).length === 0) {
+      isManualResized.current = false;
+    }
+  }, [columnSizing]);
 
   // Server Fetch
   useEffect(() => {
@@ -192,12 +211,15 @@ function AdvancedDataTableInner<T extends object>({
       expanded,
       columnSizing,
     },
-    defaultColumn: {
-      minSize: COLUMN_DEFAULTS.minSize,
-      size: COLUMN_DEFAULTS.size,
-      maxSize: COLUMN_DEFAULTS.maxSize,
-      filterFn: filterFnByVariant.text,
-    },
+    defaultColumn: useMemo(
+      () => ({
+        minSize: COLUMN_DEFAULTS.minSize,
+        size: COLUMN_DEFAULTS.size,
+        maxSize: COLUMN_DEFAULTS.maxSize,
+        filterFn: filterFnByVariant.text,
+      }),
+      [],
+    ),
     enableRowSelection: enableRowSelection ? (row) => !row.getIsGrouped() : false,
     getRowCanExpand: renderDetailPanel ? () => true : undefined,
     enableGrouping: true,
@@ -215,11 +237,27 @@ function AdvancedDataTableInner<T extends object>({
     onRowSelectionChange: setRowSelection,
     onGroupingChange: setGrouping,
     onExpandedChange: setExpanded,
-    onColumnSizingChange: setColumnSizing,
+    onColumnSizingChange: (updater) => {
+      isManualResized.current = true;
+      setColumnSizing(updater);
+    },
     enableColumnResizing,
     columnResizeMode: 'onChange',
     globalFilterFn: filterFnByVariant.text,
-    meta: { editingRowId, setEditingRowId, editValues, setEditValues, onRowSave, enableEditing, validateRow, rowErrors, setRowErrors },
+    meta: useMemo(
+      () => ({
+        editingRowId,
+        setEditingRowId,
+        editValues,
+        setEditValues,
+        onRowSave,
+        enableEditing,
+        validateRow,
+        rowErrors,
+        setRowErrors,
+      }),
+      [editingRowId, editValues, onRowSave, enableEditing, validateRow, rowErrors],
+    ),
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -257,44 +295,65 @@ function AdvancedDataTableInner<T extends object>({
     }
   }, [columnFilters, debouncedGlobalFilter]);
 
+  // ✅ PERF FIX: Stable table reference for effects
+  const tableRef = useRef(table);
+  useEffect(() => {
+    tableRef.current = table;
+  }, [table]);
+
   // ✅ PERF FIX: Debounced ResizeObserver
   useEffect(() => {
     let rafId: number | null = null;
     const calculateResponsiveColumnSizes = () => {
-      if (!tableContainerRef.current) return;
+      const currentTable = tableRef.current;
+      if (!tableContainerRef.current || !currentTable) return;
+
+      // 🛑 STOP: Don't overwrite if user is actively resizing OR has manually resized
+      if (currentTable.getState().columnSizingInfo.isResizingColumn || isManualResized.current) return;
+
       const containerWidth = tableContainerRef.current.clientWidth;
       if (containerWidth <= 0) return;
+
       const leafColumns = table.getAllLeafColumns();
       const visibleColumns = leafColumns.filter((col) => col.getIsVisible());
       const fixedWidth = visibleColumns.reduce((sum, col) => sum + (FIXED_COLUMN_WIDTHS[col.id] || 0), 0);
       const availableWidth = Math.max(containerWidth - fixedWidth - SCROLL_BUFFER, 0);
+
       const dataColumns = visibleColumns.filter((col) => !FIXED_COLUMN_WIDTHS[col.id]);
       if (dataColumns.length > 0) {
         const columnWidth = Math.max(
           COLUMN_DEFAULTS.responsiveMin,
-          Math.min(Math.floor(availableWidth / dataColumns.length), COLUMN_DEFAULTS.responsiveMax)
+          Math.min(Math.floor(availableWidth / dataColumns.length), COLUMN_DEFAULTS.responsiveMax),
         );
+
+        const currentSizing = currentTable.getState().columnSizing;
         const newSizing: ColumnSizingState = {};
         let changed = false;
+
         dataColumns.forEach((col) => {
           newSizing[col.id] = columnWidth;
-          if (columnSizing[col.id] !== columnWidth) changed = true;
+          if (currentSizing[col.id] !== columnWidth) changed = true;
         });
-        // ✅ SCALABILITY FIX: Only update if actually changed
+
+        // ✅ Only update if actually different to prevent render loops
         if (changed) setColumnSizing(newSizing);
       }
     };
+
     calculateResponsiveColumnSizes();
+
     const resizeObserver = new ResizeObserver(() => {
       if (rafId) cancelAnimationFrame(rafId);
       rafId = requestAnimationFrame(calculateResponsiveColumnSizes);
     });
+
     if (tableContainerRef.current) resizeObserver.observe(tableContainerRef.current);
+
     return () => {
       resizeObserver.disconnect();
       if (rafId) cancelAnimationFrame(rafId);
     };
-  }, [table, setColumnSizing, columnSizing]);
+  }, [setColumnSizing]); // table removed from dependencies
 
   // Handlers
   const handleDragEnd = useCallback(
@@ -310,7 +369,7 @@ function AdvancedDataTableInner<T extends object>({
         });
       }
     },
-    [setColumnOrder, table]
+    [setColumnOrder, table],
   );
 
   const toggleFullScreen = useCallback(() => {
@@ -328,19 +387,23 @@ function AdvancedDataTableInner<T extends object>({
     (type: 'csv' | 'xlsx' | 'pdf', selectionMode: 'all' | 'page' | 'selected') => {
       onExport?.({ type, selectionMode, sorting, columnFilters, globalFilter: debouncedGlobalFilter, selectedRowIds });
     },
-    [onExport, sorting, columnFilters, debouncedGlobalFilter, selectedRowIds]
+    [onExport, sorting, columnFilters, debouncedGlobalFilter, selectedRowIds],
   );
 
   const [visibilityAnchor, setVisibilityAnchor] = useState<HTMLElement | null>(null);
   const [exportAnchor, setExportAnchor] = useState<HTMLElement | null>(null);
 
   // ✅ PERF FIX: Stabilize sensors with useMemo
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 5 },
+    }),
+  );
 
   const columnOrderState = table.getState().columnOrder;
   const sortableItems = useMemo(
     () => (columnOrderState.length ? columnOrderState : table.getAllLeafColumns().map((c) => c.id)),
-    [columnOrderState, table]
+    [columnOrderState, table],
   );
 
   const hasFilters = globalFilter || (columnFilters && columnFilters.length > 0);
@@ -675,6 +738,14 @@ function AdvancedDataTableInner<T extends object>({
           <CircularProgress size={40} />
         </Box>
       )}
+      {/* Feedback Snackbar */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={2000}
+        onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
+        message={snackbar.message}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      />
     </Paper>
   );
 }
