@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Typography, Box, Chip, Divider } from '@mui/material';
-import { MRTLikeTable } from '../components/MRTLikeTable';
 import type { ColumnDef } from '@tanstack/react-table';
+import { AdvancedDataTable } from '../components/AdvancedDataTable';
 
 interface Person {
   id: number;
@@ -117,58 +117,49 @@ const TableDemoPage: React.FC = () => {
   const columns = useMemo<ColumnDef<Person, any>[]>(
     () => [
       {
-        accessorKey: "id",
-        header: "ID",
+        accessorKey: 'id',
+        header: 'ID',
         size: 80,
         enableEditing: false,
       },
       {
-        accessorKey: "firstName",
-        header: "First Name",
+        accessorKey: 'firstName',
+        header: 'First Name',
       },
       {
-        accessorKey: "lastName",
-        header: "Last Name",
+        accessorKey: 'lastName',
+        header: 'Last Name',
       },
       {
-        accessorKey: "email",
-        header: "Email",
+        accessorKey: 'email',
+        header: 'Email',
         size: 250,
       },
       {
-        accessorKey: "age",
-        header: "Age",
+        accessorKey: 'age',
+        header: 'Age',
         size: 100,
         cell: (info) => {
           const val = info.getValue();
           return (
-            <Typography
-              variant="body2"
-              color={typeof val === "number" && val > 30 ? "error" : "textPrimary"}
-            >
-              {val ?? ""}
+            <Typography variant='body2' color={typeof val === 'number' && val > 30 ? 'error' : 'textPrimary'}>
+              {val ?? ''}
             </Typography>
           );
         },
       },
       {
-        accessorKey: "status",
-        header: "Status",
+        accessorKey: 'status',
+        header: 'Status',
         cell: (info) => {
           const status = info.getValue();
           if (!status) return null;
           return (
             <Chip
               label={status.toString()}
-              size="small"
-              color={
-                status === "active"
-                  ? "success"
-                  : status === "inactive"
-                    ? "error"
-                    : "warning"
-              }
-              variant="outlined"
+              size='small'
+              color={status === 'active' ? 'success' : status === 'inactive' ? 'error' : 'warning'}
+              variant='outlined'
             />
           );
         },
@@ -178,25 +169,22 @@ const TableDemoPage: React.FC = () => {
   );
 
   const handleSaveRow = async (row: Person, values: any) => {
-    setData((prev) =>
-      prev.map((item) => (item.id === row.id ? { ...item, ...values } : item)),
-    );
+    setData((prev) => prev.map((item) => (item.id === row.id ? { ...item, ...values } : item)));
   };
 
   return (
     <Box sx={{ py: 2 }}>
       <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" gutterBottom sx={{ fontWeight: "bold" }}>
+        <Typography variant='h4' gutterBottom sx={{ fontWeight: 'bold' }}>
           TanStack Table (Full Feature Demo)
         </Typography>
-        <Typography variant="body1" color="text.secondary">
-          A high-performance table component with grouping, inline editing,
-          multi-format exports, and state persistence.
+        <Typography variant='body1' color='text.secondary'>
+          A high-performance table component with grouping, inline editing, multi-format exports, and state persistence.
         </Typography>
       </Box>
 
-      <MRTLikeTable
-        title="Employee Directory"
+      <AdvancedDataTable
+        title='Employee Directory'
         columns={columns}
         data={data}
         enableGlobalFilter
@@ -214,36 +202,36 @@ const TableDemoPage: React.FC = () => {
         onRowSave={handleSaveRow}
         renderDetailPanel={({ row }) => (
           <Box sx={{ p: 2, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
-            <Typography variant="body2"><strong>Full Name:</strong> {row.firstName} {row.lastName}</Typography>
-            <Typography variant="body2"><strong>Department:</strong> Engineering</Typography>
-            <Typography variant="body2"><strong>Hire Date:</strong> {new Date().toLocaleDateString()}</Typography>
-            <Typography variant="body2"><strong>Internal ID:</strong> UUID-{row.id}-89XY</Typography>
+            <Typography variant='body2'>
+              <strong>Full Name:</strong> {row.firstName} {row.lastName}
+            </Typography>
+            <Typography variant='body2'>
+              <strong>Department:</strong> Engineering
+            </Typography>
+            <Typography variant='body2'>
+              <strong>Hire Date:</strong> {new Date().toLocaleDateString()}
+            </Typography>
+            <Typography variant='body2'>
+              <strong>Internal ID:</strong> UUID-{row.id}-89XY
+            </Typography>
           </Box>
         )}
         renderTopToolbarCustomActions={(table) => (
-          <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
-            <Chip
-              label={`Total: ${data.length}`}
-              variant="outlined"
-              size="small"
-            />
-            <Chip
-              label={`Selected: ${table.getSelectedRowModel().rows.length}`}
-              color="primary"
-              size="small"
-            />
+          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+            <Chip label={`Total: ${data.length}`} variant='outlined' size='small' />
+            <Chip label={`Selected: ${table.getSelectedRowModel().rows.length}`} color='primary' size='small' />
           </Box>
         )}
         renderBottomToolbarCustomActions={() => (
-          <Typography variant="caption" sx={{ fontStyle: "italic" }}>
+          <Typography variant='caption' sx={{ fontStyle: 'italic' }}>
             Last updated: {new Date().toLocaleTimeString()}
           </Typography>
         )}
-        storageKey="demo-table-all-features-v3"
-        actionMode="menu"
+        storageKey='demo-table-all-features-v3'
+        actionMode='menu'
         renderRowActionMenuItems={(_, close) => [
-          <Box key="actions" sx={{ py: 1 }}>
-            <Typography variant="caption" sx={{ px: 2, fontWeight: "bold" }}>
+          <Box key='actions' sx={{ py: 1 }}>
+            <Typography variant='caption' sx={{ px: 2, fontWeight: 'bold' }}>
               Quick Actions
             </Typography>
             <Divider sx={{ my: 1 }} />
@@ -252,8 +240,8 @@ const TableDemoPage: React.FC = () => {
               sx={{
                 px: 2,
                 py: 1,
-                cursor: "pointer",
-                "&:hover": { bgcolor: "action.hover" },
+                cursor: 'pointer',
+                '&:hover': { bgcolor: 'action.hover' },
               }}
             >
               View Profile
