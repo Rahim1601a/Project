@@ -10,7 +10,7 @@ export const FIXED_COLUMN_WIDTHS: Record<string, number> = {
   __select__: 50,
   __expand__: 50,
   __row_numbers__: 50,
-  __actions__: 110,
+  __actions__: 120,
 } as const;
 
 /** System column IDs that should not be user-configurable */
@@ -34,9 +34,9 @@ export const ROW_HEIGHTS: Record<string, number> = {
 
 /** Cell padding by density */
 export const CELL_PADDING: Record<string, { action: string; data: string }> = {
-  small: { action: '0', data: '4px 12px' },
-  medium: { action: '0', data: '8px 16px' },
-  large: { action: '0', data: '12px 20px' },
+  small: { action: '0 4px', data: '4px 12px' },
+  medium: { action: '0 6px', data: '8px 16px' },
+  large: { action: '0 8px', data: '12px 20px' },
 } as const;
 
 /** Virtualizer overscan rows */

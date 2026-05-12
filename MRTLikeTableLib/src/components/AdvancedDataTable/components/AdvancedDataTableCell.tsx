@@ -130,8 +130,8 @@ export const AdvancedDataTableCell = memo(function AdvancedDataTableCell({
 
     if (isGrouped) {
       return (
-        <Box sx={{ display: 'flex', alignItems: 'center', height: '100%', gap: 1.5 }}>
-          <IconButton size='small' onClick={cell.row.getToggleExpandedHandler()} sx={{ p: 0.5 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', height: '100%', gap: 1, flexWrap: 'nowrap', whiteSpace: 'nowrap' }}>
+          <IconButton size='small' onClick={cell.row.getToggleExpandedHandler()} sx={{ p: 0.5, flexShrink: 0 }}>
             <KeyboardArrowDown
               fontSize='small'
               sx={{
@@ -140,11 +140,11 @@ export const AdvancedDataTableCell = memo(function AdvancedDataTableCell({
               }}
             />
           </IconButton>
-          <GroupWork fontSize='small' color='action' />
-          <Typography variant='body2' sx={{ fontWeight: 600 }}>
+          <GroupWork fontSize='small' color='action' sx={{ flexShrink: 0 }} />
+          <Typography variant='body2' noWrap sx={{ fontWeight: 600 }}>
             {flexRender(cell.column.columnDef.cell, cell.getContext())}
           </Typography>
-          <Typography variant='caption' color='text.secondary'>
+          <Typography variant='caption' color='text.secondary' noWrap>
             ({cell.row.subRows?.length ?? 0} items)
           </Typography>
         </Box>
@@ -158,7 +158,11 @@ export const AdvancedDataTableCell = memo(function AdvancedDataTableCell({
     if (isPlaceholder) return null;
 
     if (isActionCell) {
-      return flexRender(cell.column.columnDef.cell, cell.getContext());
+      return (
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
+          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+        </Box>
+      );
     }
 
     return (
@@ -179,10 +183,11 @@ export const AdvancedDataTableCell = memo(function AdvancedDataTableCell({
           <ContentCopy
             sx={{
               ml: 'auto',
-              fontSize: '0.85rem',
-              opacity: 0.3,
+              fontSize: '0.75rem',
+              opacity: 0,
               cursor: 'pointer',
-              '&:hover': { opacity: 1, color: 'primary.main' },
+              color: 'text.disabled',
+              transition: 'opacity 0.15s, color 0.15s',
               flexShrink: 0,
             }}
           />
@@ -220,10 +225,22 @@ export const AdvancedDataTableCell = memo(function AdvancedDataTableCell({
 
         display: 'flex',
         alignItems: 'center',
+        justifyContent: isActionCell ? 'center' : 'flex-start',
         boxSizing: 'border-box',
         overflow: 'hidden',
 
         p: cellPadding,
+
+        // Show copy icon on hover
+        '&:hover':
+          enableClickToCopy && !isActionCell
+            ? {
+                cursor: 'copy',
+                '& .MuiSvgIcon-root:last-of-type': {
+                  opacity: 0.5,
+                },
+              }
+            : {},
       }}
       onClick={handleCopy}
     >

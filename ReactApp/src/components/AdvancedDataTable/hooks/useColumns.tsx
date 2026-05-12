@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Box, Checkbox, IconButton, Tooltip } from '@mui/material';
+import { Box, Checkbox, IconButton, Tooltip, Typography } from '@mui/material';
 import { KeyboardArrowDown, Edit, Save, Cancel } from '@mui/icons-material';
 import type { FilterFn } from '@tanstack/react-table';
 import type { AdvancedDataTableColumnDef } from '../types/types';
@@ -42,10 +42,11 @@ export function useColumns<T extends object>({
         enableSorting: false,
         enableColumnFilter: false,
         enableHiding: false,
-        cell: ({ row, table }) => {
-          const { pageIndex, pageSize } = table.getState().pagination;
-          return row.index + 1 + pageIndex * pageSize;
-        },
+        cell: ({ row }) => (
+          <span style={{ fontFamily: '"Roboto Mono", monospace', color: '#9e9e9e', fontWeight: 500, fontSize: '0.8125rem' }}>
+            {row.index + 1}
+          </span>
+        ),
       });
     }
 
@@ -155,7 +156,7 @@ export function useColumns<T extends object>({
       cols.push({
         id: '__actions__',
         header: 'Actions',
-        size: 110,
+        size: 120,
         enableSorting: false,
         enableColumnFilter: false,
         enableHiding: false,
@@ -232,8 +233,7 @@ export function useColumns<T extends object>({
                   <IconButton
                     size='small'
                     sx={{
-                      padding: '4px', // ✅ REMOVE DEFAULT 12px
-                      height: '100%',
+                      padding: '4px',
                     }}
                     onClick={() => {
                       meta.setEditingRowId(row.id);
