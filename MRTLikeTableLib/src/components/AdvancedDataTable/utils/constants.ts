@@ -19,24 +19,32 @@ export const SYSTEM_COLUMN_IDS = Object.keys(FIXED_COLUMN_WIDTHS);
 /** Default column sizing constraints */
 export const COLUMN_DEFAULTS = {
   minSize: 80,
-  size: 120,
-  maxSize: 280,
+  size: 60,
+  maxSize: 600,
   responsiveMin: 75,
   responsiveMax: 250,
 } as const;
 
+/** Layout modes for column sizing (MRT compatible) */
+export const LAYOUT_MODES = {
+  GRID: 'grid' as const,
+  GRID_NO_GROW: 'grid-no-grow' as const,
+  SEMANTIC: 'semantic' as const,
+} as const;
+export type LayoutMode = typeof LAYOUT_MODES[keyof typeof LAYOUT_MODES];
+
 /** Row heights by density (px) */
 export const ROW_HEIGHTS: Record<string, number> = {
-  small: 37,
-  medium: 53,
-  large: 69,
+  small: 44,
+  medium: 56,
+  large: 72,
 } as const;
 
 /** Cell padding by density */
 export const CELL_PADDING: Record<string, { action: string; data: string }> = {
-  small: { action: '0 4px', data: '4px 12px' },
-  medium: { action: '0 6px', data: '8px 16px' },
-  large: { action: '0 8px', data: '12px 20px' },
+  small: { action: '0px 8px', data: '6px 12px' },
+  medium: { action: '0px 12px', data: '10px 16px' },
+  large: { action: '0px 16px', data: '14px 20px' },
 } as const;
 
 /** Virtualizer overscan rows */

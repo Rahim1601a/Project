@@ -63,7 +63,7 @@ export const AdvancedDataTableCell = memo(function AdvancedDataTableCell({
       navigator.clipboard.writeText(text);
       window.dispatchEvent(new CustomEvent('table-copy', { detail: text }));
     },
-    [enableClickToCopy, isEditing, cell],
+    [enableClickToCopy, isEditing, isActionCell, cell]
   );
 
   const renderContent = () => {
@@ -130,21 +130,18 @@ export const AdvancedDataTableCell = memo(function AdvancedDataTableCell({
 
     if (isGrouped) {
       return (
-        <Box sx={{ display: 'flex', alignItems: 'center', height: '100%', gap: 1, flexWrap: 'nowrap', whiteSpace: 'nowrap' }}>
-          <IconButton size='small' onClick={cell.row.getToggleExpandedHandler()} sx={{ p: 0.5, flexShrink: 0 }}>
+        <Box className='advanced-data-table__cell-content--grouped'>
+          <IconButton size='small' onClick={cell.row.getToggleExpandedHandler()} className='advanced-data-table__toggle-expand-button'>
             <KeyboardArrowDown
               fontSize='small'
-              sx={{
-                transform: cell.row.getIsExpanded() ? 'rotate(0deg)' : 'rotate(-90deg)',
-                transition: 'transform 0.2s',
-              }}
+              className={`advanced-data-table__expand-icon ${cell.row.getIsExpanded() ? 'is-expanded' : 'is-collapsed'}`}
             />
           </IconButton>
-          <GroupWork fontSize='small' color='action' sx={{ flexShrink: 0 }} />
-          <Typography variant='body2' noWrap sx={{ fontWeight: 600 }}>
+          <GroupWork fontSize='small' color='action' className='advanced-data-table__grouping-icon' />
+          <Typography variant='body2' noWrap className='advanced-data-table__group-title'>
             {flexRender(cell.column.columnDef.cell, cell.getContext())}
           </Typography>
-          <Typography variant='caption' color='text.secondary' noWrap>
+          <Typography variant='caption' color='text.secondary' noWrap className='advanced-data-table__group-count'>
             ({cell.row.subRows?.length ?? 0} items)
           </Typography>
         </Box>
@@ -158,89 +155,50 @@ export const AdvancedDataTableCell = memo(function AdvancedDataTableCell({
     if (isPlaceholder) return null;
 
     if (isActionCell) {
-      return (
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
-          {flexRender(cell.column.columnDef.cell, cell.getContext())}
-        </Box>
-      );
+      return <Box className='advanced-data-table__action-cell-content'>{flexRender(cell.column.columnDef.cell, cell.getContext())}</Box>;
     }
 
     return (
-      <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', height: '100%', gap: 0.5 }}>
-        <Box
-          sx={{
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            height: '100%',
-            display: 'flex',
-            alignItems: 'center',
-          }}
-        >
-          {flexRender(cell.column.columnDef.cell, cell.getContext())}
-        </Box>
-        {enableClickToCopy && !isActionCell && (
-          <ContentCopy
-            sx={{
-              ml: 'auto',
-              fontSize: '0.75rem',
-              opacity: 0,
-              cursor: 'pointer',
-              color: 'text.disabled',
-              transition: 'opacity 0.15s, color 0.15s',
-              flexShrink: 0,
-            }}
-          />
-        )}
+      <Box className='advanced-data-table__cell-content'>
+        <Box className='advanced-data-table__cell-text'>{flexRender(cell.column.columnDef.cell, cell.getContext())}</Box>
+        {enableClickToCopy && !isActionCell && <ContentCopy className='advanced-data-table__cell-copy-icon' />}
       </Box>
     );
   };
 
   const padding = CELL_PADDING[density] ?? CELL_PADDING.small;
   const cellPadding = isActionCell ? padding.action : padding.data;
+  const grow = (cell.column.columnDef as any).grow;
 
   /** Memoize inline styles to avoid object re-creation */
-  const inlineStyle = useMemo(
-    () => ({
-      flexBasis: cell.column.getSize(),
-      width: cell.column.getSize(),
-      minWidth: cell.column.getSize(),
+  const inlineStyle = useMemo(() => {
+    const size = cell.column.getSize();
+    return {
+      flexBasis: grow ? 1 : size,
+      width: grow ? 0 : size,
+      minWidth: grow ? 100 : size,
       flexShrink: 0,
 
       position: (isPinned ? 'sticky' : 'relative') as React.CSSProperties['position'],
       left: isPinned === 'left' ? cell.column.getStart('left') : undefined,
       right: isPinned === 'right' ? cell.column.getAfter('right') : undefined,
-    }),
-    [cell.column, cell.column.getSize(), isPinned],
-  );
+    };
+  }, [cell.column, cell.column.getSize(), grow, isPinned]);
 
   return (
     <Box
       role='cell'
+      data-grow={grow ? 'true' : 'false'}
       style={inlineStyle}
+      className={`advanced-data-table__cell ${isActionCell ? 'advanced-data-table__cell--action' : ''}`}
       sx={{
-        height: ROW_HEIGHTS[density], // ✅ FIXED HEIGHT
+        zIndex: isPinned ? 2 : 1,
+        backgroundColor: isPinned ? 'background.paper' : 'inherit',
+        height: ROW_HEIGHTS[density],
         minHeight: ROW_HEIGHTS[density],
         maxHeight: ROW_HEIGHTS[density],
-
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: isActionCell ? 'center' : 'flex-start',
-        boxSizing: 'border-box',
-        overflow: 'hidden',
-
         p: cellPadding,
-
-        // Show copy icon on hover
-        '&:hover':
-          enableClickToCopy && !isActionCell
-            ? {
-                cursor: 'copy',
-                '& .MuiSvgIcon-root:last-of-type': {
-                  opacity: 0.5,
-                },
-              }
-            : {},
+        cursor: enableClickToCopy && !isActionCell ? 'copy' : 'default',
       }}
       onClick={handleCopy}
     >

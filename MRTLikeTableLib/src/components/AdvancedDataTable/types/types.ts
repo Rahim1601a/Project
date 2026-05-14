@@ -6,7 +6,7 @@ import type { ColumnDef, PaginationState, SortingState, ColumnFiltersState } fro
    Column Definition
 ========================================================= */
 
-export type AdvancedDataTableColumnDef<T extends object> = ColumnDef<T, unknown> & {
+export type ADT_ColumnDef<T extends object> = ColumnDef<T, unknown> & {
   filterVariant?:
     | 'autocomplete'
     | 'checkbox'
@@ -22,6 +22,8 @@ export type AdvancedDataTableColumnDef<T extends object> = ColumnDef<T, unknown>
     | 'time'
     | 'time-range';
   multiSelectLogic?: 'AND' | 'OR';
+  /** Column should grow to fill remaining space (MRT compatible) */
+  grow?: boolean;
 };
 
 /* =========================================================
@@ -29,7 +31,7 @@ export type AdvancedDataTableColumnDef<T extends object> = ColumnDef<T, unknown>
 ========================================================= */
 
 export type AdvancedDataTableProps<T extends object> = {
-  columns: AdvancedDataTableColumnDef<T>[];
+  columns: ADT_ColumnDef<T>[];
   data?: T[];
 
   loading?: boolean;
@@ -58,6 +60,18 @@ export type AdvancedDataTableProps<T extends object> = {
   enableColumnResizing?: boolean;
   enableClickToCopy?: boolean;
   enableRowSelection?: boolean;
+
+  /** Column layout mode - MRT compatible (default: grid-no-grow when resizing enabled) */
+  layoutMode?: 'grid' | 'grid-no-grow' | 'semantic';
+
+  /** Column resize mode - onChange (immediate) or onEnd (after drag completes) */
+  columnResizeMode?: 'onChange' | 'onEnd';
+
+  /** Column resize direction for RTL support */
+  columnResizeDirection?: 'ltr' | 'rtl';
+
+  /** Options for built-in display columns (select, expand, row numbers, actions) */
+  displayColumnDefOptions?: Record<string, { size?: number; maxSize?: number; minSize?: number; enableResizing?: boolean; grow?: boolean }>;
 
   renderDetailPanel?: (props: { row: T }) => React.ReactNode;
 

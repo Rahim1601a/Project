@@ -179,22 +179,25 @@ const MultiSelectFilter = ({ localValue, setLocalValue, options: rawOptions }: F
   const selectedValues = (localValue as string[]) ?? [];
   const selectedOptions = options.filter((opt: any) => selectedValues.includes(opt.value));
   return (
-    <Select
-      isMulti
-      options={options}
-      value={selectedOptions}
-      menuPortalTarget={document.body}
-      menuPosition='fixed'
-      onChange={(newValues) => {
-        const values = Array.isArray(newValues) ? newValues.map((v) => v.value) : [];
-        setLocalValue(values.length ? values : undefined);
-      }}
-      styles={{
-        control: (base) => ({ ...base, minHeight: 32, fontSize: '0.75rem', zIndex: 1 }),
-        menu: (base) => ({ ...base, zIndex: 9999 }),
-        menuPortal: (base) => ({ ...base, zIndex: 9999 }),
-      }}
-    />
+    <Box sx={{ mt: 0.5, width: '100%' }}>
+      <Select
+        isMulti
+        options={options}
+        value={selectedOptions}
+        menuPortalTarget={document.body}
+        menuPosition='fixed'
+        onChange={(newValues) => {
+          const values = Array.isArray(newValues) ? newValues.map((v) => v.value) : [];
+          setLocalValue(values.length ? values : undefined);
+        }}
+        styles={{
+          container: (base) => ({ ...base, width: '100%' }),
+          control: (base) => ({ ...base, minHeight: 40, fontSize: '0.75rem', zIndex: 1, width: '100%' }),
+          menu: (base) => ({ ...base, zIndex: 9999 }),
+          menuPortal: (base) => ({ ...base, zIndex: 9999 }),
+        }}
+      />
+    </Box>
   );
 };
 

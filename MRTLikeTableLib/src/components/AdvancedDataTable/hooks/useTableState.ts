@@ -65,7 +65,6 @@ export interface UseTableStateOptions {
 
 const DEFAULT_PAGINATION: PaginationState = { pageIndex: 0, pageSize: 10 };
 const DEFAULT_PINNING: ColumnPinningState = { left: ['__select__'], right: ['__actions__'] };
-
 const DEFAULT_DENSITY: 'small' | 'medium' | 'large' = 'small';
 
 /* =========================================================
@@ -148,7 +147,20 @@ export function useTableState(storageKey: string, options?: UseTableStateOptions
     };
     adapter.setItem(storageKey, JSON.stringify(stateToSave));
     onStateChange?.(stateToSave);
-  }, [storageKey, adapter, enabled, onStateChange, pagination, sorting, columnVisibility, columnOrder, columnPinning, columnSizing, grouping, density]);
+  }, [
+    storageKey,
+    adapter,
+    enabled,
+    onStateChange,
+    pagination,
+    sorting,
+    columnVisibility,
+    columnOrder,
+    columnPinning,
+    columnSizing,
+    grouping,
+    density,
+  ]);
 
   const resetState = useCallback(() => {
     setPagination(DEFAULT_PAGINATION);

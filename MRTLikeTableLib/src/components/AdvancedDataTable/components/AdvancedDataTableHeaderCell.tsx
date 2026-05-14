@@ -68,27 +68,61 @@ const DraggableHeader = memo(function DraggableHeader({
    Resize Handle
 ========================================================= */
 
-const ResizeHandle = memo(function ResizeHandle({ header }: { header: any }) {
+const ResizeHandle = memo(function ResizeHandle({ header, columnResizeDirection = 'ltr' }: { header: any; columnResizeDirection?: 'ltr' | 'rtl' }) {
   if (!header.column.getCanResize()) return null;
+
+  const isResizing = header.column.getIsResizing();
+  const isRTL = columnResizeDirection === 'rtl';
 
   return (
     <Box
       onMouseDown={header.getResizeHandler()}
+      onTouchStart={header.getResizeHandler()}
       onDoubleClick={(e) => {
         e.stopPropagation();
         autoSizeColumn(header.getContext().table, header.column.id);
       }}
       sx={{
         position: 'absolute',
-        right: 0,
         top: 0,
-        width: 10,
+        [isRTL ? 'left' : 'right']: 0,
         height: '100%',
+        width: '6px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
         cursor: 'col-resize',
+        zIndex: 5,
+        [isRTL ? 'marginLeft' : 'marginRight']: '-2px',
         userSelect: 'none',
-        '&:hover': {
-          backgroundColor: 'primary.main',
+
+        // invisible by default
+        '&::before': {
+          content: '""',
+          position: 'absolute',
+          [isRTL ? 'left' : 'right']: '2px',
+          width: '2px',
+          height: '60%',
+          borderRadius: '2px',
+          backgroundColor: isResizing ? 'primary.main' : 'divider',
+          transition: 'all 0.2s ease',
         },
+
+        // hover effect (like MRT)
+        '&:hover::before': {
+          backgroundColor: 'primary.main',
+          height: '80%',
+          width: '3px',
+        },
+
+        // active resizing state
+        ...(isResizing && {
+          '&::before': {
+            width: '3px',
+            backgroundColor: 'primary.main',
+            height: '90%',
+          },
+        }),
       }}
     />
   );
@@ -106,6 +140,7 @@ export const AdvancedDataTableHeaderCell = memo(function AdvancedDataTableHeader
   enableGrouping,
   showFilters,
   filterOptions,
+  columnResizeDirection = 'ltr',
 }: {
   header: any;
   density: string;
@@ -118,16 +153,19 @@ export const AdvancedDataTableHeaderCell = memo(function AdvancedDataTableHeader
   isSomeSelected: boolean;
   columnSizing: any;
   filterOptions?: Record<string, Array<string | { label?: string; value: any }>>;
+  columnResizeDirection?: 'ltr' | 'rtl';
 }) {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const handleOpen = (event: React.MouseEvent<HTMLElement>) => setAnchorEl(event.currentTarget);
   const handleClose = () => setAnchorEl(null);
 
   const isPinned = header.column.getIsPinned();
+  const grow = (header.column.columnDef as any).grow;
+  const size = header.getSize();
   const style: React.CSSProperties = {
-    flexBasis: header.getSize(),
-    width: header.getSize(),
-    minWidth: header.getSize(),
+    flexBasis: grow ? 1 : size,
+    width: grow ? 0 : size,
+    minWidth: grow ? 100 : size,
     flexShrink: 0,
 
     position: isPinned ? 'sticky' : 'relative',
@@ -144,37 +182,19 @@ export const AdvancedDataTableHeaderCell = memo(function AdvancedDataTableHeader
   return (
     <Box
       role='columnheader'
+      data-grow={grow ? 'true' : 'false'}
       style={style}
+      className={`advanced-data-table__header-cell ${isActionColumn ? 'advanced-data-table__header-cell--action' : 'advanced-data-table__header-cell--data'}`}
       sx={{
-        position: 'relative',
         p: headerPadding,
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'center',
-        alignItems: isActionColumn ? 'center' : 'flex-start',
-        boxSizing: 'border-box',
-        overflow: 'hidden',
-        borderBottom: '2px solid',
-        borderColor: 'divider',
-        fontWeight: isActionColumn ? 'normal' : 'bold',
-        bgcolor: 'background.paper',
+        zIndex: isPinned ? 3 : 1,
       }}
     >
       {isActionColumn ? (
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
-          {flexRender(header.column.columnDef.header, header.getContext())}
-        </Box>
+        <Box className='advanced-data-table__action-cell-content'>{flexRender(header.column.columnDef.header, header.getContext())}</Box>
       ) : (
-        <Box sx={{ display: 'flex', flexDirection: 'column', width: '100%', alignItems: 'flex-start' }}>
-          <Box
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              width: '100%',
-              gap: 0.5,
-              justifyContent: 'flex-start',
-            }}
-          >
+        <Box className='advanced-data-table__header-content'>
+          <Box className='advanced-data-table__header-title-row'>
             {enableColumnOrdering && !isSystemColumn ? (
               <DraggableHeader
                 id={header.id}
@@ -186,18 +206,15 @@ export const AdvancedDataTableHeaderCell = memo(function AdvancedDataTableHeader
               </DraggableHeader>
             ) : (
               <Box
+                className='advanced-data-table__draggable-header-title'
                 sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 1,
                   cursor: header.column.getCanSort() ? 'pointer' : 'default',
-                  fontWeight: 600,
                 }}
                 onClick={header.column.getToggleSortingHandler()}
               >
                 {flexRender(header.column.columnDef.header, header.getContext())}
                 {header.column.getIsSorted() && (
-                  <Typography variant='caption' color='primary'>
+                  <Typography variant='caption' className='advanced-data-table__header-sort-icon'>
                     {header.column.getIsSorted() === 'asc' ? '↑' : '↓'}
                   </Typography>
                 )}
@@ -208,12 +225,7 @@ export const AdvancedDataTableHeaderCell = memo(function AdvancedDataTableHeader
               <IconButton
                 size='small'
                 onClick={() => header.column.toggleGrouping()}
-                sx={{
-                  ml: 0.5,
-                  opacity: header.column.getIsGrouped() ? 1 : 0.3,
-                  '&:hover': { opacity: 1 },
-                  color: header.column.getIsGrouped() ? 'primary.main' : 'inherit',
-                }}
+                className={`advanced-data-table__grouping-button ${header.column.getIsGrouped() ? 'is-grouped' : ''}`}
               >
                 <ViewModule sx={{ fontSize: '0.9rem' }} />
               </IconButton>
@@ -224,7 +236,7 @@ export const AdvancedDataTableHeaderCell = memo(function AdvancedDataTableHeader
                 <IconButton
                   size='small'
                   onClick={handleOpen}
-                  sx={{ ml: 'auto', opacity: header.column.getIsPinned() ? 1 : 0.3, '&:hover': { opacity: 1 } }}
+                  className={`advanced-data-table__pin-button ${header.column.getIsPinned() ? 'is-pinned' : ''}`}
                 >
                   <PushPin sx={{ fontSize: '0.9rem', transform: header.column.getIsPinned() ? 'rotate(45deg)' : 'none' }} />
                 </IconButton>
@@ -259,7 +271,7 @@ export const AdvancedDataTableHeaderCell = memo(function AdvancedDataTableHeader
           {showFilters && header.column.getCanFilter() && <ColumnFilter column={header.column} filterOptions={filterOptions} />}
         </Box>
       )}
-      <ResizeHandle header={header} />
+      <ResizeHandle header={header} columnResizeDirection={columnResizeDirection} />
     </Box>
   );
 });

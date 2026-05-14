@@ -1,0 +1,550 @@
+.advanced-data-table {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  border-radius: 16px;
+  overflow: hidden;
+  position: relative;
+}
+
+.advanced-data-table--fullscreen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 1300;
+  border-radius: 0;
+}
+
+.advanced-data-table__toolbar {
+  padding: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  border-bottom: 1px solid var(--sfa-border);
+  background-color: var(--sfa-surface);
+}
+
+.advanced-data-table__toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.advanced-data-table__toolbar-title {
+  margin-right: 16px;
+}
+
+.advanced-data-table__search {
+  width: 250px;
+}
+
+.advanced-data-table__menu-paper {
+  max-height: 400px;
+  width: 250px;
+}
+
+.advanced-data-table__menu-header {
+  padding: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.advanced-data-table__menu-title {
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+.advanced-data-table__menu-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.advanced-data-table__menu-section {
+  padding: 8px;
+}
+
+.advanced-data-table__menu-density {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+.advanced-data-table__table-container {
+  flex-grow: 1;
+  max-height: 550px;
+  min-height: 200px;
+  position: relative;
+  overflow: auto;
+  width: 100%;
+  min-width: 0;
+}
+
+.advanced-data-table__table-container--fullscreen {
+  max-height: calc(100vh - 120px);
+}
+
+.advanced-data-table__header-bar {
+  display: flex;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  width: 100%;
+  min-width: max-content;
+}
+
+.advanced-data-table__header-row {
+  display: flex;
+  width: 100%;
+  min-width: max-content;
+}
+
+.advanced-data-table__empty-state {
+  padding: 32px;
+  text-align: center;
+  width: 100%;
+}
+
+.advanced-data-table__empty-state-actions {
+  margin-top: 16px;
+}
+
+.advanced-data-table__body {
+  display: block;
+  width: 100%;
+  min-width: max-content;
+  position: relative;
+}
+
+.advanced-data-table__skeleton-row {
+  display: flex;
+  width: 100%;
+}
+
+.advanced-data-table__skeleton-cell {
+  padding: 8px;
+}
+
+.advanced-data-table__footer {
+  border-top: 1px solid var(--sfa-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-left: 16px;
+  padding-right: 16px;
+}
+
+.advanced-data-table__pagination {
+  border: none;
+}
+
+.advanced-data-table__loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--sfa-surface-overlay);
+  z-index: 10;
+}
+
+/* ================================================
+   Header Cell Classes
+================================================ */
+
+.advanced-data-table__header-cell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  box-sizing: border-box;
+  overflow: hidden;
+  border-bottom: 2px solid var(--sfa-border);
+  background-color: var(--bs-boxed-body-bg);
+}
+
+.advanced-data-table__header-cell--action {
+  align-items: center;
+  font-weight: normal;
+}
+
+.advanced-data-table__header-cell--data {
+  align-items: flex-start;
+  font-weight: bold;
+}
+
+.advanced-data-table__header-content {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  align-items: flex-start;
+}
+
+.advanced-data-table__header-title-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 4px;
+  justify-content: flex-start;
+}
+
+.advanced-data-table__action-cell-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+.advanced-data-table__header-sort-icon {
+  color: var(--bs-primary);
+  font-weight: bold;
+}
+/* ================================================
+   Column Resizing - MRT Compatible
+================================================ */
+
+.advanced-data-table__resize-handle {
+  position: absolute;
+  right: 0;
+  top: 0;
+  height: 100%;
+  width: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: col-resize;
+  user-select: none;
+  z-index: 5;
+  margin-right: -2px;
+
+  // Invisible resize line by default
+  &::before {
+    content: '';
+    position: absolute;
+    right: 2px;
+    width: 2px;
+    height: 60%;
+    border-radius: 2px;
+    background-color: var(--sfa-divider, #e0e0e0);
+    transition: all 0.2s ease;
+  }
+
+  // Enhanced hover state (MRT style)
+  &:hover::before {
+    background-color: var(--bs-primary, #1976d2);
+    height: 80%;
+    width: 3px;
+  }
+
+  // Active resizing state
+  &.is-resizing::before {
+    width: 3px;
+    background-color: var(--bs-primary, #1976d2);
+    height: 90%;
+  }
+}
+
+/* ================================================
+   Layout Modes - MRT Compatible
+================================================ */
+
+// grid: Columns grow to fill space
+.advanced-data-table[data-layout='grid'] {
+  .advanced-data-table__header-bar {
+    display: grid;
+    width: 100%;
+  }
+
+  .advanced-data-table__header-row {
+    display: grid;
+    width: 100%;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr; // All columns grow equally
+  }
+
+  .advanced-data-table__row {
+    display: grid;
+    width: 100%;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr; // All columns grow equally
+  }
+
+  // Override for growing columns
+  .advanced-data-table__header-cell[data-grow='true'],
+  .advanced-data-table__cell[data-grow='true'] {
+    grid-column: span 1; // Let grid handle growth
+  }
+}
+
+// grid-no-grow: Columns have fixed widths (default when resizing enabled)
+.advanced-data-table[data-layout='grid-no-grow'] {
+  .advanced-data-table__header-bar {
+    display: flex;
+    width: max-content;
+    min-width: 100%;
+  }
+
+  .advanced-data-table__header-row,
+  .advanced-data-table__row {
+    display: flex;
+    width: max-content;
+    min-width: 100%;
+    flex-wrap: nowrap;
+  }
+
+  .advanced-data-table__header-cell[data-grow='true'],
+  .advanced-data-table__cell[data-grow='true'] {
+    width: auto;
+    min-width: 100px;
+    flex-grow: 1;
+  }
+}
+
+// semantic: Use flex layout (default when resizing disabled)
+.advanced-data-table[data-layout='semantic'] {
+  .advanced-data-table__header-bar {
+    display: flex;
+    width: 100%;
+  }
+
+  .advanced-data-table__header-row {
+    display: flex;
+    width: 100%;
+    flex-wrap: nowrap;
+  }
+
+  .advanced-data-table__row {
+    display: flex;
+    width: 100%;
+    flex-wrap: nowrap;
+  }
+}
+
+/* ================================================
+   Column Grow Support - MRT Compatible
+================================================ */
+
+.advanced-data-table__header-cell[data-grow='true'],
+.advanced-data-table__cell[data-grow='true'] {
+  flex-grow: 1;
+  min-width: 100px;
+}
+
+.advanced-data-table__grouping-button {
+  opacity: 0.3;
+  transition: opacity 0.2s;
+
+  &:hover {
+    opacity: 1;
+  }
+
+  &.is-grouped {
+    opacity: 1;
+    color: var(--bs-primary);
+  }
+}
+
+.advanced-data-table__pin-button {
+  margin-left: auto;
+  opacity: 0.3;
+  transition: opacity 0.2s;
+
+  &:hover {
+    opacity: 1;
+  }
+
+  &.is-pinned {
+    opacity: 1;
+  }
+}
+
+.advanced-data-table__draggable-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: grab;
+  white-space: nowrap;
+  font-weight: 600;
+  transition: opacity 0.2s;
+
+  &.is-dragging {
+    cursor: grabbing;
+    opacity: 0.5;
+  }
+}
+
+.advanced-data-table__draggable-header-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--bs-primary);
+  }
+}
+
+/* ================================================
+   Cell Classes
+================================================ */
+
+.advanced-data-table__cell {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  box-sizing: border-box;
+  overflow: hidden;
+  border-bottom: 1px solid var(--sfa-border);
+  background-color: inherit;
+
+  // For flex layouts (semantic mode)
+  flex-shrink: 0;
+
+  // For grid layouts (grid, grid-no-grow modes)
+  // Grid items inherit sizing from parent grid
+}
+
+.advanced-data-table[data-layout='grid'] .advanced-data-table__cell,
+.advanced-data-table[data-layout='grid'] .advanced-data-table__header-cell {
+  // Grid mode: let grid handle sizing via grid-template-columns
+  flex-shrink: 0;
+  flex-basis: auto;
+  width: auto;
+  min-width: 0;
+}
+
+.advanced-data-table[data-layout='grid-no-grow'] .advanced-data-table__cell,
+.advanced-data-table[data-layout='grid-no-grow'] .advanced-data-table__header-cell {
+  // Grid-no-grow mode: use inline styles for sizing with grid
+  flex-shrink: 0;
+}
+
+.advanced-data-table__cell--action {
+  justify-content: center;
+  background-color: var(--bs-boxed-body-bg) !important;
+}
+
+.advanced-data-table__cell-content {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  gap: 4px;
+}
+
+.advanced-data-table__cell-content--grouped {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  gap: 8px;
+  background-color: var(--bs-boxed-body-bg);
+}
+
+.advanced-data-table__cell-text {
+  // white-space: normal;
+  // overflow: hidden;
+  // text-overflow: clip;
+
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: break-word;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  line-height: 1.4;
+}
+
+.advanced-data-table__cell-copy-icon {
+  margin-left: auto;
+  font-size: 0.75rem;
+  opacity: 0;
+  cursor: pointer;
+  color: var(--bs-primary);
+  transition:
+    opacity 0.15s,
+    color 0.15s;
+  flex-shrink: 0;
+
+  &:hover {
+    opacity: 1;
+    color: var(--bs-primary);
+  }
+}
+
+.advanced-data-table__toggle-expand-button {
+  padding: 4px;
+  flex-shrink: 0;
+}
+
+.advanced-data-table__expand-icon {
+  transition: transform 0.2s;
+
+  &.is-expanded {
+    transform: rotate(0deg);
+  }
+
+  &.is-collapsed {
+    transform: rotate(-90deg);
+  }
+}
+
+.advanced-data-table__grouping-icon {
+  flex-shrink: 0;
+}
+
+.advanced-data-table__group-title {
+  font-weight: 600;
+}
+
+.advanced-data-table__group-count {
+  opacity: 0.7;
+}
+
+/* ================================================
+   Row Classes
+================================================ */
+
+.advanced-data-table__row {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: max-content;
+  box-sizing: border-box;
+}
+
+.advanced-data-table__row--editing {
+  background-color: rgba(0, 0, 0, 0.08);
+}
+
+.advanced-data-table__row--grouped {
+  background-color: rgba(0, 0, 0, 0.04);
+}
+
+.advanced-data-table__row:hover {
+  background-color: rgba(25, 118, 210, 0.04);
+}
+
+.advanced-data-table__row-cells {
+  display: flex;
+  width: 100%;
+  height: 100%; // ✅ ADD THIS
+}
+
+.advanced-data-table__detail-panel {
+  width: 100%;
+  padding: 16px;
+  border-top: 1px solid var(--sfa-border);
+  background-color: rgba(0, 0, 0, 0.02);
+}

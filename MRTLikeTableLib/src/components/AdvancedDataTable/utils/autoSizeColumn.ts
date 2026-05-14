@@ -1,23 +1,46 @@
-export function autoSizeColumn(table: any, columnId: string) {
+// ✅ Create canvas ONCE (type-safe)
+const canvas = document.createElement('canvas');
+const context = canvas.getContext('2d');
+
+function measureTextWidth(text: string, font = '14px Roboto'): number {
+  if (!context) return text.length * 8;
+
+  context.font = font;
+  return context.measureText(text).width;
+}
+
+export function autoSizeColumn(table: any, columnId: string, visibleRows?: any[]) {
   const column = table.getColumn(columnId);
   if (!column) return;
 
-  const rows = table.getRowModel().rows;
+  // ✅ Use virtualized rows if available
+  const rows = visibleRows ?? table.getPaginationRowModel().rows;
 
   let maxWidth = 0;
+  const font = '14px Poppins';
 
-  // Header width
+  // ✅ Header
   const headerText = typeof column.columnDef.header === 'string' ? column.columnDef.header : column.id;
 
-  maxWidth = Math.max(maxWidth, headerText.length * 8);
+  maxWidth = Math.max(maxWidth, measureTextWidth(String(headerText), font));
 
-  // Cell widths
-  rows.forEach((row: any) => {
-    const value = row.getValue(columnId);
+  // ✅ Cells
+  for (let i = 0; i < rows.length; i++) {
+    const value = rows[i]?.getValue(columnId);
     if (value != null) {
-      maxWidth = Math.max(maxWidth, String(value).length * 8);
+      const width = measureTextWidth(String(value), font);
+      if (width > maxWidth) maxWidth = width;
     }
-  });
+  }
 
-  column.setSize(Math.min(Math.max(maxWidth + 32, 80), 400));
+  const padding = 48;
+  const newSize = Math.min(Math.max(maxWidth + padding, 80), 600);
+
+  table.setColumnSizing((prev: any) => {
+    if (prev[columnId] === newSize) return prev;
+    return {
+      ...prev,
+      [columnId]: newSize,
+    };
+  });
 }

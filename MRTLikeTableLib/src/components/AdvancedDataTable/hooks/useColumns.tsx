@@ -2,12 +2,12 @@ import React, { useMemo } from 'react';
 import { Box, Checkbox, IconButton, Tooltip, Typography } from '@mui/material';
 import { KeyboardArrowDown, Edit, Save, Cancel } from '@mui/icons-material';
 import type { FilterFn } from '@tanstack/react-table';
-import type { AdvancedDataTableColumnDef } from '../types/types';
+import type { ADT_ColumnDef } from '../types/types';
 import { filterFnByVariant } from '../utils/filters';
 import { RowActionMenu } from '../components/RowActionMenu';
 
 interface UseColumnsProps<T extends object> {
-  columns: AdvancedDataTableColumnDef<T>[];
+  columns: ADT_ColumnDef<T>[];
   enableRowNumbers?: boolean;
   renderDetailPanel?: (props: { row: any }) => React.ReactNode;
   enableExpanding?: boolean;
@@ -17,6 +17,8 @@ interface UseColumnsProps<T extends object> {
   enableEditing?: boolean;
   enableRowSelection?: boolean;
   onRowSave?: (oldRow: T, newValues: Record<string, any>) => Promise<void> | void;
+  /** MRT compatible - options for built-in display columns */
+  displayColumnDefOptions?: Record<string, { size?: number; maxSize?: number; minSize?: number; enableResizing?: boolean; grow?: boolean }>;
 }
 
 export function useColumns<T extends object>({
@@ -29,31 +31,44 @@ export function useColumns<T extends object>({
   renderRowActionMenuItems,
   enableEditing,
   enableRowSelection,
+  displayColumnDefOptions,
 }: UseColumnsProps<T>) {
-  return useMemo<AdvancedDataTableColumnDef<T>[]>(() => {
-    const cols: AdvancedDataTableColumnDef<T>[] = [];
+  return useMemo<ADT_ColumnDef<T>[]>(() => {
+    const cols: ADT_ColumnDef<T>[] = [];
 
     // 1. Row Numbers
     if (enableRowNumbers) {
+      const opts = displayColumnDefOptions?.['mrt-row-numbers'] || {};
       cols.push({
         id: '__row_numbers__',
         header: '#',
-        size: 50,
+        size: opts.size ?? 50,
+        minSize: opts.minSize ?? 40,
+        maxSize: opts.maxSize ?? 60,
+        enableResizing: opts.enableResizing ?? false,
+        grow: opts.grow,
         enableSorting: false,
         enableColumnFilter: false,
         enableHiding: false,
         cell: ({ row }) => (
-          <span style={{ fontFamily: '"Roboto Mono", monospace', color: '#9e9e9e', fontWeight: 500, fontSize: '0.8125rem' }}>{row.index + 1}</span>
+          <Typography component='span' variant='caption' color='text.secondary'>
+            {row.index + 1}
+          </Typography>
         ),
       });
     }
 
     // 2. Expand Column
     if (renderDetailPanel || enableExpanding) {
+      const opts = displayColumnDefOptions?.['mrt-expand'] || {};
       cols.push({
         id: '__expand__',
         header: '',
-        size: 50,
+        size: opts.size ?? 50,
+        minSize: opts.minSize ?? 40,
+        maxSize: opts.maxSize ?? 60,
+        enableResizing: opts.enableResizing ?? false,
+        grow: opts.grow,
         enableSorting: false,
         enableColumnFilter: false,
         enableHiding: false,
@@ -76,9 +91,14 @@ export function useColumns<T extends object>({
 
     // 3. Selection Column
     if (enableRowSelection) {
+      const opts = displayColumnDefOptions?.['mrt-row-select'] || {};
       cols.push({
         id: '__select__',
-        size: 50,
+        size: opts.size ?? 50,
+        minSize: opts.minSize ?? 40,
+        maxSize: opts.maxSize ?? 60,
+        enableResizing: opts.enableResizing ?? false,
+        grow: opts.grow,
         enableSorting: false,
         enableColumnFilter: false,
         enableHiding: false,
@@ -133,6 +153,7 @@ export function useColumns<T extends object>({
             ...col,
             minSize: col.minSize ?? 80,
             maxSize: col.maxSize ?? 320,
+            grow: col.grow,
             filterFn: ((row, columnId, value) => {
               if (!Array.isArray(value) || value.length === 0) return true;
               const cell = String(row.getValue(columnId)).toLowerCase();
@@ -144,21 +165,26 @@ export function useColumns<T extends object>({
         }
         return {
           ...col,
+          grow: col.grow,
           filterFn: col.filterVariant && filterFnByVariant[col.filterVariant] ? filterFnByVariant[col.filterVariant] : filterFnByVariant.text,
         };
-      }),
+      })
     );
 
     // 5. Actions Column
     if (actionMode !== 'none') {
+      const opts = displayColumnDefOptions?.['mrt-row-actions'] || {};
       cols.push({
         id: '__actions__',
         header: 'Actions',
-        size: 120,
+        size: opts.size ?? 60,
+        minSize: opts.minSize ?? 100,
+        maxSize: opts.maxSize ?? 150,
+        enableResizing: opts.enableResizing ?? false,
+        grow: opts.grow,
         enableSorting: false,
         enableColumnFilter: false,
         enableHiding: false,
-        enableResizing: false,
         cell: ({ row, table: t }) => {
           const meta = (t.options as any).meta;
           const isEd = meta.editingRowId === row.id;
@@ -231,8 +257,7 @@ export function useColumns<T extends object>({
                   <IconButton
                     size='small'
                     sx={{
-                      padding: '4px', // ✅ REMOVE DEFAULT 12px
-                      height: '100%',
+                      padding: '4px',
                     }}
                     onClick={() => {
                       meta.setEditingRowId(row.id);
@@ -251,5 +276,15 @@ export function useColumns<T extends object>({
     }
 
     return cols;
-  }, [columns, actionMode, renderRowActions, renderRowActionMenuItems, enableRowNumbers, renderDetailPanel, enableExpanding, enableEditing]);
+  }, [
+    columns,
+    actionMode,
+    renderRowActions,
+    renderRowActionMenuItems,
+    enableRowNumbers,
+    renderDetailPanel,
+    enableExpanding,
+    enableEditing,
+    displayColumnDefOptions,
+  ]);
 }

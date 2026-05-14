@@ -1,5 +1,5 @@
 import React, { memo } from 'react';
-import { Box, alpha } from '@mui/material';
+import { Box } from '@mui/material';
 import { AdvancedDataTableCell } from './AdvancedDataTableCell';
 import { ROW_HEIGHTS } from '../utils/constants';
 
@@ -59,21 +59,14 @@ export const AdvancedDataTableRow = memo(
         data-index={virtualIndex}
         role='row'
         style={style}
+        className={`advanced-data-table__row ${isEditing ? 'advanced-data-table__row--editing' : ''} ${row.getIsGrouped() ? 'advanced-data-table__row--grouped' : ''}`}
         sx={{
-          display: 'flex',
-          flexDirection: 'column',
-          width: '100%',
-          minWidth: 'max-content',
-
           height: isExpanded ? 'auto' : ROW_HEIGHTS[density],
           minHeight: ROW_HEIGHTS[density],
           maxHeight: isExpanded ? 'none' : ROW_HEIGHTS[density],
-
-          boxSizing: 'border-box',
-          bgcolor: isEditing ? alpha('#000', 0.03) : row.getIsGrouped() ? alpha('#000', 0.02) : 'transparent',
         }}
       >
-        <Box sx={{ display: 'flex', width: '100%' }}>
+        <Box className='advanced-data-table__row-cells'>
           {row.getVisibleCells().map((cell: any) => (
             <AdvancedDataTableCell
               key={cell.id}
@@ -90,11 +83,7 @@ export const AdvancedDataTableRow = memo(
         </Box>
 
         {/* Detail Panel */}
-        {renderDetailPanel && isExpanded && (
-          <Box sx={{ width: '100%', p: 2, borderTop: '1px solid', borderColor: 'divider', bgcolor: alpha('#000', 0.01) }}>
-            {renderDetailPanel({ row: row.original })}
-          </Box>
-        )}
+        {renderDetailPanel && isExpanded && <Box className='advanced-data-table__detail-panel'>{renderDetailPanel({ row: row.original })}</Box>}
       </Box>
     );
   }),

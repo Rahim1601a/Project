@@ -60,6 +60,7 @@ import { AdvancedDataTableRow } from './AdvancedDataTableRow';
 import { AdvancedDataTableHeaderCell } from './AdvancedDataTableHeaderCell';
 import { FIXED_COLUMN_WIDTHS, COLUMN_DEFAULTS, ROW_HEIGHTS, VIRTUALIZER_OVERSCAN, SCROLL_BUFFER, PAGE_SIZE_OPTIONS } from '../utils/constants';
 import { useColumns } from '../hooks/useColumns';
+import './AdvancedDataTable.scss';
 
 /** Lazy-load heavy export dependencies (jsPDF is ~300KB) */
 const lazyExportCSV = async (...args: Parameters<typeof import('../utils/export').exportCSV>) => {
@@ -98,6 +99,10 @@ function AdvancedDataTableInner<T extends object>({
   enableExpanding = false,
   enableEditing = false,
   enableRowSelection = false,
+  layoutMode = 'grid-no-grow',
+  columnResizeMode = 'onChange',
+  columnResizeDirection = 'ltr',
+  displayColumnDefOptions,
   renderDetailPanel,
   onRowSave,
   renderTopToolbarCustomActions,
@@ -119,7 +124,7 @@ function AdvancedDataTableInner<T extends object>({
       ...autoFilterOptions,
       ...filterOptions,
     }),
-    [autoFilterOptions, filterOptions],
+    [autoFilterOptions, filterOptions]
   );
 
   const {
@@ -193,6 +198,7 @@ function AdvancedDataTableInner<T extends object>({
     renderRowActionMenuItems,
     enableEditing,
     enableRowSelection,
+    displayColumnDefOptions,
   });
 
   // Table Instance
@@ -219,7 +225,7 @@ function AdvancedDataTableInner<T extends object>({
         maxSize: COLUMN_DEFAULTS.maxSize,
         filterFn: filterFnByVariant.text,
       }),
-      [],
+      []
     ),
     enableRowSelection: enableRowSelection ? (row) => !row.getIsGrouped() : false,
     getRowCanExpand: renderDetailPanel ? () => true : undefined,
@@ -243,7 +249,8 @@ function AdvancedDataTableInner<T extends object>({
       setColumnSizing(updater);
     },
     enableColumnResizing,
-    columnResizeMode: 'onChange',
+    columnResizeMode,
+    columnResizeDirection,
     globalFilterFn: filterFnByVariant.text,
     meta: useMemo(
       () => ({
@@ -257,7 +264,7 @@ function AdvancedDataTableInner<T extends object>({
         rowErrors,
         setRowErrors,
       }),
-      [editingRowId, editValues, onRowSave, enableEditing, validateRow, rowErrors],
+      [editingRowId, editValues, onRowSave, enableEditing, validateRow, rowErrors]
     ),
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
@@ -324,7 +331,7 @@ function AdvancedDataTableInner<T extends object>({
       if (dataColumns.length > 0) {
         const columnWidth = Math.max(
           COLUMN_DEFAULTS.responsiveMin,
-          Math.min(Math.floor(availableWidth / dataColumns.length), COLUMN_DEFAULTS.responsiveMax),
+          Math.min(Math.floor(availableWidth / dataColumns.length), COLUMN_DEFAULTS.responsiveMax)
         );
 
         const currentSizing = currentTable.getState().columnSizing;
@@ -370,7 +377,7 @@ function AdvancedDataTableInner<T extends object>({
         });
       }
     },
-    [setColumnOrder, table],
+    [setColumnOrder, table]
   );
 
   const toggleFullScreen = useCallback(() => {
@@ -388,23 +395,19 @@ function AdvancedDataTableInner<T extends object>({
     (type: 'csv' | 'xlsx' | 'pdf', selectionMode: 'all' | 'page' | 'selected') => {
       onExport?.({ type, selectionMode, sorting, columnFilters, globalFilter: debouncedGlobalFilter, selectedRowIds });
     },
-    [onExport, sorting, columnFilters, debouncedGlobalFilter, selectedRowIds],
+    [onExport, sorting, columnFilters, debouncedGlobalFilter, selectedRowIds]
   );
 
   const [visibilityAnchor, setVisibilityAnchor] = useState<HTMLElement | null>(null);
   const [exportAnchor, setExportAnchor] = useState<HTMLElement | null>(null);
 
   // ✅ PERF FIX: Stabilize sensors with useMemo
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: { distance: 5 },
-    }),
-  );
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   const columnOrderState = table.getState().columnOrder;
   const sortableItems = useMemo(
     () => (columnOrderState.length ? columnOrderState : table.getAllLeafColumns().map((c) => c.id)),
-    [columnOrderState, table],
+    [columnOrderState, table]
   );
 
   const hasFilters = globalFilter || (columnFilters && columnFilters.length > 0);
@@ -417,42 +420,24 @@ function AdvancedDataTableInner<T extends object>({
     setPagination((prev: any) => ({ ...prev, pageIndex: 0 }));
   }, [setColumnFilters, setGlobalFilter, setPagination]);
 
+  const rootClass = isFullScreen ? 'advanced-data-table advanced-data-table--fullscreen' : 'advanced-data-table';
+  const tableContainerClass = isFullScreen
+    ? 'advanced-data-table__table-container advanced-data-table__table-container--fullscreen'
+    : 'advanced-data-table__table-container';
+
   return (
-    <Paper
-      ref={containerRef}
-      elevation={2}
-      sx={{
-        width: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        borderRadius: 2,
-        overflow: 'hidden',
-        ...(isFullScreen && { position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 1300, borderRadius: 0 }),
-      }}
-    >
+    <Paper ref={containerRef} elevation={2} className={rootClass} data-layout={enableColumnResizing ? layoutMode || 'grid-no-grow' : 'semantic'}>
       {/* Top Toolbar */}
-      <Box
-        sx={{
-          p: 1.5,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: 2,
-          borderBottom: '1px solid',
-          borderColor: 'divider',
-          bgcolor: 'background.paper',
-        }}
-      >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+      <Box className='advanced-data-table__toolbar'>
+        <Box className='advanced-data-table__toolbar-group'>
           {title && (
-            <Typography variant='h6' sx={{ mr: 2 }}>
+            <Typography variant='h6' className='advanced-data-table__toolbar-title'>
               {title}
             </Typography>
           )}
           {renderTopToolbarCustomActions?.(table)}
         </Box>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Box className='advanced-data-table__toolbar-group'>
           {enableGlobalFilter && (
             <TextField
               size='small'
@@ -475,7 +460,7 @@ function AdvancedDataTableInner<T extends object>({
                   ) : null,
                 },
               }}
-              sx={{ width: 250 }}
+              className='advanced-data-table__search'
             />
           )}
           {enableColumnFilters && (
@@ -511,7 +496,12 @@ function AdvancedDataTableInner<T extends object>({
       </Box>
 
       {/* Export Menu */}
-      <Menu anchorEl={exportAnchor} open={Boolean(exportAnchor)} onClose={() => setExportAnchor(null)}>
+      <Menu
+        anchorEl={exportAnchor}
+        open={Boolean(exportAnchor)}
+        onClose={() => setExportAnchor(null)}
+        slotProps={{ paper: { className: 'advanced-data-table__menu-paper' } }}
+      >
         <MenuItem
           onClick={() => {
             setExportAnchor(null);
@@ -555,13 +545,13 @@ function AdvancedDataTableInner<T extends object>({
         anchorEl={visibilityAnchor}
         open={Boolean(visibilityAnchor)}
         onClose={() => setVisibilityAnchor(null)}
-        slotProps={{ paper: { sx: { maxHeight: 400, width: 250 } } }}
+        slotProps={{ paper: { className: 'advanced-data-table__menu-paper' } }}
       >
-        <Box sx={{ p: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Typography variant='subtitle2' sx={{ px: 1 }}>
+        <Box className='advanced-data-table__menu-header'>
+          <Typography variant='subtitle2' className='advanced-data-table__menu-title'>
             Columns
           </Typography>
-          <Box>
+          <Box className='advanced-data-table__menu-actions'>
             <IconButton size='small' onClick={() => table.toggleAllColumnsVisible(true)}>
               <Typography variant='caption'>All</Typography>
             </IconButton>
@@ -583,11 +573,11 @@ function AdvancedDataTableInner<T extends object>({
           );
         })}
         <Divider />
-        <Box sx={{ p: 1 }}>
-          <Typography variant='caption' sx={{ px: 1, fontWeight: 'bold' }}>
+        <Box className='advanced-data-table__menu-section'>
+          <Typography variant='caption' className='advanced-data-table__density-label'>
             Density
           </Typography>
-          <Box sx={{ display: 'flex', gap: 1, mt: 1, px: 1 }}>
+          <Box className='advanced-data-table__menu-density'>
             <Tooltip title='Small'>
               <IconButton size='small' color={density === 'small' ? 'primary' : 'default'} onClick={() => setDensity('small')}>
                 <DensitySmall fontSize='small' />
@@ -612,20 +602,15 @@ function AdvancedDataTableInner<T extends object>({
         <SortableContext items={sortableItems} strategy={horizontalListSortingStrategy}>
           <Box
             ref={tableContainerRef}
+            className={tableContainerClass}
             sx={{
-              flexGrow: 1,
               maxHeight: isFullScreen ? 'calc(100vh - 120px)' : 550,
-              minHeight: 200,
-              position: 'relative',
-              overflow: 'auto',
-              width: '100%',
-              minWidth: 0,
             }}
           >
             {/* Header */}
-            <Box sx={{ display: 'flex', position: 'sticky', top: 0, zIndex: 10, width: '100%', minWidth: 'max-content' }}>
+            <Box className='advanced-data-table__header-bar'>
               {table.getHeaderGroups().map((hg) => (
-                <Box key={hg.id} sx={{ display: 'flex', width: '100%', minWidth: 'max-content' }}>
+                <Box key={hg.id} className='advanced-data-table__header-row'>
                   {hg.headers.map((header) => (
                     <AdvancedDataTableHeaderCell
                       key={header.id}
@@ -640,6 +625,7 @@ function AdvancedDataTableInner<T extends object>({
                       isAllSelected={table.getIsAllRowsSelected()}
                       isSomeSelected={table.getIsSomeRowsSelected()}
                       columnSizing={table.getState().columnSizing}
+                      columnResizeDirection={columnResizeDirection}
                     />
                   ))}
                 </Box>
@@ -648,10 +634,10 @@ function AdvancedDataTableInner<T extends object>({
 
             {/* Empty State */}
             {!loading && filteredRowCount === 0 && (
-              <Box sx={{ p: 4, textAlign: 'center', width: '100%' }}>
+              <Box className='advanced-data-table__empty-state'>
                 <Typography variant='body1'>{hasFilters ? 'No results match your filters' : 'No records found'}</Typography>
                 {hasFilters && (
-                  <Box sx={{ mt: 2 }}>
+                  <Box className='advanced-data-table__empty-state-actions'>
                     <IconButton color='primary' onClick={clearAllFilters}>
                       <RestartAlt />
                     </IconButton>
@@ -662,14 +648,12 @@ function AdvancedDataTableInner<T extends object>({
             )}
 
             {/* Body */}
-            <Box
-              sx={{ display: 'block', height: `${rowVirtualizer.getTotalSize()}px`, width: '100%', minWidth: 'max-content', position: 'relative' }}
-            >
+            <Box className='advanced-data-table__body' sx={{ height: `${rowVirtualizer.getTotalSize()}px` }}>
               {loading
                 ? Array.from({ length: 5 }).map((_, i) => (
-                    <Box key={i} sx={{ display: 'flex', width: '100%' }}>
+                    <Box key={i} className='advanced-data-table__skeleton-row'>
                       {table.getVisibleLeafColumns().map((c) => (
-                        <Box key={c.id} sx={{ p: 1, width: c.getSize(), minWidth: c.getSize() }}>
+                        <Box key={c.id} className='advanced-data-table__skeleton-cell' sx={{ width: c.getSize(), minWidth: c.getSize() }}>
                           <Skeleton variant='text' />
                         </Box>
                       ))}
@@ -703,7 +687,7 @@ function AdvancedDataTableInner<T extends object>({
       </DndContext>
 
       {/* Footer / Pagination */}
-      <Box sx={{ borderTop: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 2 }}>
+      <Box className='advanced-data-table__footer'>
         <Typography variant='caption' color='text.secondary'>
           {table.getSelectedRowModel().rows.length} of {table.getFilteredRowModel().rows.length} row(s) selected
         </Typography>
@@ -716,26 +700,13 @@ function AdvancedDataTableInner<T extends object>({
           onPageChange={(_, p) => table.setPageIndex(p)}
           onRowsPerPageChange={(e) => table.setPageSize(Number(e.target.value))}
           rowsPerPageOptions={[...PAGE_SIZE_OPTIONS]}
-          sx={{ border: 'none' }}
+          className='advanced-data-table__pagination'
         />
       </Box>
 
       {/* Loading Overlay */}
       {loading && table.getRowModel().rows.length > 0 && (
-        <Box
-          sx={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: 'rgba(255,255,255,0.3)',
-            zIndex: 10,
-          }}
-        >
+        <Box className='advanced-data-table__loading-overlay'>
           <CircularProgress size={40} />
         </Box>
       )}

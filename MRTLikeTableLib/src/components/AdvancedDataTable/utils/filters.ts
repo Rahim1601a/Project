@@ -1,5 +1,5 @@
 import type { FilterFn } from '@tanstack/react-table';
-import type { AdvancedDataTableColumnDef } from '../types/types';
+import type { ADT_ColumnDef } from '../types/types';
 
 /* =========================================================
    Helpers
@@ -59,11 +59,11 @@ export function setFilterSafe(column: any, value: any) {
   }
 }
 
-export function getAccessorKey<T extends object>(column: AdvancedDataTableColumnDef<T>): string | undefined {
+export function getAccessorKey<T extends object>(column: ADT_ColumnDef<T>): string | undefined {
   return typeof (column as any).accessorKey === 'string' ? ((column as any).accessorKey as string) : undefined;
 }
 
-export function buildFilterOptionsFromData<T extends object>(data: T[], columns: AdvancedDataTableColumnDef<T>[]) {
+export function buildFilterOptionsFromData<T extends object>(data: T[], columns: ADT_ColumnDef<T>[]) {
   const result: Record<string, Array<{ label: string; value: any }>> = {};
 
   columns.forEach((col) => {
