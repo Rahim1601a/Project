@@ -1,12 +1,22 @@
-import React from 'react';
+import type React from 'react';
+import type {
+  ColumnDef,
+  PaginationState,
+  SortingState,
+  ColumnFiltersState,
+  Row,
+  Table,
+  VisibilityState,
+  ColumnOrderState,
+  ColumnPinningState,
+  ColumnSizingState,
+  GroupingState,
+  ExpandedState,
+} from '@tanstack/react-table';
 
-import type { ColumnDef, PaginationState, SortingState, ColumnFiltersState } from '@tanstack/react-table';
+export type ADTDensity = 'compact' | 'comfortable' | 'spacious';
 
-/* =========================================================
-   Column Definition
-========================================================= */
-
-export type ADT_ColumnDef<T extends object> = ColumnDef<T, unknown> & {
+export type ADT_ColumnDef<T extends object> = ColumnDef<T, any> & {
   filterVariant?:
     | 'autocomplete'
     | 'checkbox'
@@ -22,29 +32,30 @@ export type ADT_ColumnDef<T extends object> = ColumnDef<T, unknown> & {
     | 'time'
     | 'time-range';
   multiSelectLogic?: 'AND' | 'OR';
-  /** Column should grow to fill remaining space (MRT compatible) */
-  grow?: boolean;
+  grow?: boolean | number;
+  enableEditing?: boolean;
+  enableClickToCopy?: boolean;
+  muiTableHeadCellProps?: any;
+  muiTableBodyCellProps?: any;
 };
 
-/* =========================================================
-   Table Props
-========================================================= */
-
-export type AdvancedDataTableProps<T extends object> = {
+export interface AdvancedDataTableProps<T extends object> {
   columns: ADT_ColumnDef<T>[];
   data?: T[];
 
   loading?: boolean;
   rowCount?: number;
-
-  manualMode?: boolean;
-  fetchData?: (params: { pagination: PaginationState; sorting: SortingState; columnFilters: ColumnFiltersState; globalFilter: string }) => void;
-
-  actionMode?: 'none' | 'inline' | 'menu';
-  renderRowActions?: (row: T) => React.ReactNode;
-  renderRowActionMenuItems?: (row: T, closeMenu: () => void) => React.ReactNode;
-
-  onRowSave?: (row: T, values: Record<string, any>) => Promise<void> | void;
+  manualPagination?: boolean;
+  manualSorting?: boolean;
+  manualFiltering?: boolean;
+  manualGrouping?: boolean;
+  fetchData?: (params: {
+    pagination: PaginationState;
+    sorting: SortingState;
+    columnFilters: ColumnFiltersState;
+    globalFilter: string;
+    grouping: GroupingState;
+  }) => void;
 
   enableGlobalFilter?: boolean;
   enableColumnFilters?: boolean;
@@ -60,58 +71,75 @@ export type AdvancedDataTableProps<T extends object> = {
   enableColumnResizing?: boolean;
   enableClickToCopy?: boolean;
   enableRowSelection?: boolean;
+  enableStickyHeader?: boolean;
+  enableStickyFooter?: boolean;
+  enableColumnFooters?: boolean;
+  enableRowPinning?: boolean;
+  enablePagination?: boolean;
 
-  /** Column layout mode - MRT compatible (default: grid-no-grow when resizing enabled) */
   layoutMode?: 'grid' | 'grid-no-grow' | 'semantic';
-
-  /** Column resize mode - onChange (immediate) or onEnd (after drag completes) */
+  initialDensity?: ADTDensity;
   columnResizeMode?: 'onChange' | 'onEnd';
+  actionMode?: 'none' | 'inline' | 'menu';
 
-  /** Column resize direction for RTL support */
-  columnResizeDirection?: 'ltr' | 'rtl';
+  renderRowActions?: (props: { row: Row<T>; table: Table<T> }) => React.ReactNode;
+  renderRowActionMenuItems?: (props: { row: Row<T>; table: Table<T>; closeMenu: () => void }) => React.ReactNode;
+  renderDetailPanel?: (props: { row: Row<T>; table: Table<T> }) => React.ReactNode;
+  renderTopToolbarCustomActions?: (props: { table: Table<T> }) => React.ReactNode;
+  renderBottomToolbarCustomActions?: (props: { table: Table<T> }) => React.ReactNode;
 
-  /** Options for built-in display columns (select, expand, row numbers, actions) */
-  displayColumnDefOptions?: Record<string, { size?: number; maxSize?: number; minSize?: number; enableResizing?: boolean; grow?: boolean }>;
+  onRowSelectionChange?: (rowSelection: Record<string, boolean>) => void;
+  onRowSave?: (row: T, values: Record<string, any>) => Promise<void> | void;
 
-  renderDetailPanel?: (props: { row: T }) => React.ReactNode;
+  validateRow?: (values: Record<string, any>, row: T) => AdvancedDataTableValidationErrors<T> | Promise<AdvancedDataTableValidationErrors<T>>;
 
-  renderTopToolbarCustomActions?: (table: any) => React.ReactNode;
-  renderBottomToolbarCustomActions?: (table: any) => React.ReactNode;
+  onScrollEnd?: () => void;
+  onExport?: (params: ADTExportParams) => Promise<void>;
+
+  getSubRows?: (originalRow: T) => T[] | undefined;
+  filterOptions?: Record<string, Array<string | { label?: string; value: any }>>;
+  displayColumnDefOptions?: Record<string, Partial<ADT_ColumnDef<T>>>;
 
   isStorage?: boolean;
   storageKey?: string;
   title?: string;
+}
 
-  validateRow?: (values: Record<string, any>, row: T) => AdvancedDataTableValidationErrors<T> | Promise<AdvancedDataTableValidationErrors<T>>;
-
-  onExport?: (params: {
-    type: 'csv' | 'xlsx' | 'pdf';
-    selectionMode: 'all' | 'page' | 'selected';
-    sorting: SortingState;
-    columnFilters: ColumnFiltersState;
-    globalFilter: string;
-    selectedRowIds: string[];
-  }) => Promise<void>;
-
-  /** Dynamic filter options by column accessor key */
-  filterOptions?: Record<string, Array<string | { label?: string; value: any }>>;
+export type ADTExportParams = {
+  type: 'csv' | 'xlsx' | 'pdf';
+  selectionMode: 'all' | 'page' | 'selected';
+  sorting: SortingState;
+  columnFilters: ColumnFiltersState;
+  globalFilter: string;
+  selectedRowIds: string[];
 };
-
-/* =========================================================
-   Editing + Validation Types
-========================================================= */
 
 export type AdvancedDataTableValidationErrors<T extends object> = Partial<Record<keyof T, string>> | null;
 
-export type AdvancedDataTableMeta<T extends object> = {
+export interface ADTTableState {
+  pagination: PaginationState;
+  sorting: SortingState;
+  columnFilters: ColumnFiltersState;
+  globalFilter: string;
+  columnVisibility: VisibilityState;
+  columnOrder: ColumnOrderState;
+  columnPinning: ColumnPinningState;
+  columnSizing: ColumnSizingState;
+  grouping: GroupingState;
+  density: ADTDensity;
+  expanded: ExpandedState;
+  rowSelection: Record<string, boolean>;
+}
+
+export type ADTMeta<T extends object> = {
   editingRowId?: string | null;
   setEditingRowId?: (id: string | null) => void;
-
   editValues?: Record<string, any>;
   setEditValues?: React.Dispatch<React.SetStateAction<Record<string, any>>>;
-
   rowErrors?: AdvancedDataTableValidationErrors<T>;
   setRowErrors?: React.Dispatch<React.SetStateAction<AdvancedDataTableValidationErrors<T>>>;
-
+  onRowSave?: (row: T, values: Record<string, any>) => Promise<void> | void;
   validateRow?: (values: Record<string, any>, row: T) => AdvancedDataTableValidationErrors<T> | Promise<AdvancedDataTableValidationErrors<T>>;
+  enableEditing?: boolean;
+  filterOptions?: Record<string, Array<string | { label?: string; value: any }>>;
 };

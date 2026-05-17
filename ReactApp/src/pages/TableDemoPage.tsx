@@ -139,6 +139,8 @@ const TableDemoPage: React.FC = () => {
         accessorKey: 'age',
         header: 'Age',
         size: 100,
+        footer: (info) =>
+          `Avg: ${Math.round(info.table.getCoreRowModel().rows.reduce((sum, row) => sum + row.original.age, 0) / info.table.getCoreRowModel().rows.length)}`,
         cell: (info) => {
           const val = info.getValue();
           return (
@@ -184,7 +186,6 @@ const TableDemoPage: React.FC = () => {
       </Box>
 
       <AdvancedDataTable
-        isStorage={true}
         title='Employee Directory'
         columns={columns}
         data={data}
@@ -200,12 +201,16 @@ const TableDemoPage: React.FC = () => {
         enableRowNumbers
         enableClickToCopy
         enableEditing
+        enableRowSelection
+        enableColumnFooters
         enableColumnResizing
+        columnResizeMode='onChange'
         onRowSave={handleSaveRow}
+        onScrollEnd={() => console.log('Scrolled to bottom - fetch more data here!')}
         renderDetailPanel={({ row }) => (
           <Box sx={{ p: 2, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
             <Typography variant='body2'>
-              <strong>Full Name:</strong> {row.firstName} {row.lastName}
+              <strong>Full Name:</strong> {row.original.firstName} {row.original.lastName}
             </Typography>
             <Typography variant='body2'>
               <strong>Department:</strong> Engineering
@@ -214,11 +219,11 @@ const TableDemoPage: React.FC = () => {
               <strong>Hire Date:</strong> {new Date().toLocaleDateString()}
             </Typography>
             <Typography variant='body2'>
-              <strong>Internal ID:</strong> UUID-{row.id}-89XY
+              <strong>Internal ID:</strong> UUID-{row.original.id}-89XY
             </Typography>
           </Box>
         )}
-        renderTopToolbarCustomActions={(table) => (
+        renderTopToolbarCustomActions={({ table }) => (
           <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
             <Chip label={`Total: ${data.length}`} variant='outlined' size='small' />
             <Chip label={`Selected: ${table.getSelectedRowModel().rows.length}`} color='primary' size='small' />
@@ -231,14 +236,14 @@ const TableDemoPage: React.FC = () => {
         )}
         storageKey='demo-table-all-features-v3'
         actionMode='menu'
-        renderRowActionMenuItems={(_, close) => [
+        renderRowActionMenuItems={({ closeMenu }) => [
           <Box key='actions' sx={{ py: 1 }}>
             <Typography variant='caption' sx={{ px: 2, fontWeight: 'bold' }}>
               Quick Actions
             </Typography>
             <Divider sx={{ my: 1 }} />
             <Box
-              onClick={close}
+              onClick={closeMenu}
               sx={{
                 px: 2,
                 py: 1,

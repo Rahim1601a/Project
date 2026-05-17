@@ -1,24 +1,27 @@
 import { jsPDF } from 'jspdf';
 import { autoTable } from 'jspdf-autotable';
+import type { Row, Table } from '@tanstack/react-table';
 
 /* =========================================================
    CSV Export
 ========================================================= */
 
-export function exportCSV<T extends object>(rows: T[], table: any, file = 'export.csv') {
-  const columns = table.getAllColumns().filter((c: any) => c.id !== '__actions__' && c.id !== '__select__');
-  const header = columns.map((c: any) => (typeof c.columnDef.header === 'string' ? c.columnDef.header : c.id)).join(',');
+export function exportCSV<T extends object>(rows: Row<T>[], table: Table<T>, file = 'export.csv') {
+  const columns = table.getAllColumns().filter((c) => !c.id.startsWith('__'));
+  const header = columns.map((c) => (typeof c.columnDef.header === 'string' ? c.columnDef.header : c.id)).join(',');
   const body = rows
     .map((row) =>
       columns
-        .map((c: any) => {
-          const val = (row as any)[c.id] ?? '';
+        .map((c) => {
+          const val = row.getValue(c.id) ?? '';
           return `"${val.toString().replace(/"/g, '""')}"`;
         })
-        .join(',')
+        .join(','),
     )
     .join('\n');
-  const blob = new Blob([`${header}\n${body}`], {
+  
+  // Add UTF-8 BOM for Excel compatibility
+  const blob = new Blob(['\uFEFF' + `${header}\n${body}`], {
     type: 'text/csv;charset=utf-8;',
   });
   const url = URL.createObjectURL(blob);
@@ -35,9 +38,9 @@ export function exportCSV<T extends object>(rows: T[], table: any, file = 'expor
    Excel (XML) Export
 ========================================================= */
 
-export function exportXLSX<T extends object>(rows: T[], table: any, file = 'export.xlsx') {
-  const columns = table.getAllColumns().filter((c: any) => c.id !== '__actions__' && c.id !== '__select__');
-  const header = columns.map((c: any) => (typeof c.columnDef.header === 'string' ? c.columnDef.header : c.id));
+export function exportXLSX<T extends object>(rows: Row<T>[], table: Table<T>, file = 'export.xlsx') {
+  const columns = table.getAllColumns().filter((c) => !c.id.startsWith('__'));
+  const header = columns.map((c) => (typeof c.columnDef.header === 'string' ? c.columnDef.header : c.id));
 
   let xml = `<?xml version="1.0"?><?mso-application progid="Excel.Sheet"?>
 <Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet" xmlns:html="http://www.w3.org/TR/REC-html40">
@@ -51,8 +54,8 @@ export function exportXLSX<T extends object>(rows: T[], table: any, file = 'expo
 
   rows.forEach((row) => {
     xml += '<Row>';
-    columns.forEach((c: any) => {
-      const val = (row as any)[c.id] ?? '';
+    columns.forEach((c) => {
+      const val = row.getValue(c.id) ?? '';
       xml += `<Cell><Data ss:Type="String">${val}</Data></Cell>`;
     });
     xml += '</Row>';
@@ -72,10 +75,10 @@ export function exportXLSX<T extends object>(rows: T[], table: any, file = 'expo
    PDF Export
 ========================================================= */
 
-export function exportPDF<T extends object>(rows: T[], table: any, file = 'export.pdf') {
-  const columns = table.getAllColumns().filter((c: any) => c.id !== '__actions__' && c.id !== '__select__');
-  const headers = columns.map((c: any) => (typeof c.columnDef.header === 'string' ? c.columnDef.header : c.id));
-  const body = rows.map((row) => columns.map((c: any) => (row as any)[c.id] ?? ''));
+export function exportPDF<T extends object>(rows: Row<T>[], table: Table<T>, file = 'export.pdf') {
+  const columns = table.getAllColumns().filter((c) => !c.id.startsWith('__'));
+  const headers = columns.map((c) => (typeof c.columnDef.header === 'string' ? c.columnDef.header : c.id));
+  const body = rows.map((row) => columns.map((c) => row.getValue(c.id) ?? ''));
 
   const doc = new jsPDF();
   autoTable(doc, {

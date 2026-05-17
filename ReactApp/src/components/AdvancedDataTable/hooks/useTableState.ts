@@ -9,18 +9,9 @@ import type {
   ColumnSizingState,
   GroupingState,
 } from '@tanstack/react-table';
+import type { ADTDensity } from '../types/types';
 
-/* =========================================================
-   Schema Version — bump when adding/removing persisted fields
-   to auto-clear stale localStorage data
- ========================================================= */
-const SCHEMA_VERSION = 2;
-
-/* =========================================================
-   Persistence Adapter (Scalability)
-   Default: localStorage. Override for sessionStorage,
-   IndexedDB, server-side, or testing.
- ========================================================= */
+const SCHEMA_VERSION = 3;
 
 export interface PersistenceAdapter {
   getItem(key: string): string | null;
@@ -29,14 +20,14 @@ export interface PersistenceAdapter {
 }
 
 const localStorageAdapter: PersistenceAdapter = {
-  getItem: (key) => localStorage.getItem(key),
-  setItem: (key, value) => localStorage.setItem(key, value),
-  removeItem: (key) => localStorage.removeItem(key),
+  getItem: (key) => (typeof window !== 'undefined' ? localStorage.getItem(key) : null),
+  setItem: (key, value) => {
+    if (typeof window !== 'undefined') localStorage.setItem(key, value);
+  },
+  removeItem: (key) => {
+    if (typeof window !== 'undefined') localStorage.removeItem(key);
+  },
 };
-
-/* =========================================================
-   Types
- ========================================================= */
 
 export interface TablePersistenceState {
   _version?: number;
@@ -47,59 +38,36 @@ export interface TablePersistenceState {
   columnPinning?: ColumnPinningState;
   columnSizing?: ColumnSizingState;
   grouping?: GroupingState;
-  density?: 'small' | 'medium' | 'large';
+  density?: ADTDensity;
 }
 
 export interface UseTableStateOptions {
-  /** Override the default localStorage persistence adapter */
   adapter?: PersistenceAdapter;
-  /** Whether to enable persistence */
   enabled?: boolean;
-  /** Callback triggered whenever the persisted state changes */
   onStateChange?: (state: TablePersistenceState) => void;
+  initialDensity?: ADTDensity;
 }
-
-/* =========================================================
-   Constants
- ========================================================= */
 
 const DEFAULT_PAGINATION: PaginationState = { pageIndex: 0, pageSize: 10 };
 const DEFAULT_PINNING: ColumnPinningState = { left: ['__select__'], right: ['__actions__'] };
-const DEFAULT_DENSITY: 'small' | 'medium' | 'large' = 'small';
-
-/* =========================================================
-   Hook
- ========================================================= */
 
 export function useTableState(storageKey: string, options?: UseTableStateOptions) {
   const adapter = options?.adapter ?? localStorageAdapter;
   const onStateChange = options?.onStateChange;
   const enabled = options?.enabled ?? false;
+  const DEFAULT_DENSITY: ADTDensity = options?.initialDensity ?? 'compact';
 
-  // 1. Load initial state from storage ONCE
   const [initialData] = useState<TablePersistenceState>(() => {
     if (!enabled) return {};
     const raw = adapter.getItem(storageKey);
     if (raw) {
       try {
         const parsed = JSON.parse(raw);
-
-        // Schema version guard — clear stale data
         if (parsed._version !== SCHEMA_VERSION) {
           adapter.removeItem(storageKey);
           return {};
         }
-
-        return {
-          pagination: parsed.pagination,
-          sorting: parsed.sorting,
-          columnVisibility: parsed.columnVisibility,
-          columnOrder: parsed.columnOrder,
-          columnPinning: parsed.columnPinning,
-          columnSizing: parsed.columnSizing,
-          grouping: parsed.grouping,
-          density: parsed.density,
-        };
+        return parsed as TablePersistenceState;
       } catch (e) {
         console.error(`Failed to parse table state for ${storageKey}`, e);
       }
@@ -107,12 +75,10 @@ export function useTableState(storageKey: string, options?: UseTableStateOptions
     return {};
   });
 
-  // 2. Initialize all states
   const [pagination, setPagination] = useState<PaginationState>(initialData.pagination ?? DEFAULT_PAGINATION);
   const [sorting, setSorting] = useState<SortingState>(initialData.sorting ?? []);
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]); // NEVER persist
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
 
-  // Global filter with internal state for immediate UI feedback
   const [globalFilter, _setGlobalFilter] = useState('');
   const [debouncedGlobalFilter, setDebouncedGlobalFilter] = useState('');
 
@@ -121,9 +87,8 @@ export function useTableState(storageKey: string, options?: UseTableStateOptions
   const [columnPinning, setColumnPinning] = useState<ColumnPinningState>(initialData.columnPinning ?? DEFAULT_PINNING);
   const [columnSizing, setColumnSizing] = useState<ColumnSizingState>(initialData.columnSizing ?? {});
   const [grouping, setGrouping] = useState<GroupingState>(initialData.grouping ?? []);
-  const [density, setDensity] = useState<'small' | 'medium' | 'large'>(initialData.density ?? DEFAULT_DENSITY);
+  const [density, setDensity] = useState<ADTDensity>(initialData.density ?? DEFAULT_DENSITY);
 
-  // 3. Debounce Effect for Global Filter
   useEffect(() => {
     const handler = setTimeout(() => {
       setDebouncedGlobalFilter(globalFilter);
@@ -131,7 +96,6 @@ export function useTableState(storageKey: string, options?: UseTableStateOptions
     return () => clearTimeout(handler);
   }, [globalFilter]);
 
-  // 4. Persistence Effect (Excluding filters)
   useEffect(() => {
     if (!enabled) return;
     const stateToSave: TablePersistenceState = {
@@ -177,7 +141,7 @@ export function useTableState(storageKey: string, options?: UseTableStateOptions
     if (enabled) {
       adapter.removeItem(storageKey);
     }
-  }, [storageKey, adapter, enabled]);
+  }, [storageKey, adapter, enabled, DEFAULT_DENSITY]);
 
   return {
     pagination,

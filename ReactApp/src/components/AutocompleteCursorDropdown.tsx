@@ -6,7 +6,7 @@ import {
   TextField,
 } from '@mui/material';
 import { List, useListRef, type RowComponentProps } from 'react-window';
-import { Controller, type Control } from 'react-hook-form';
+import { Controller } from 'react-hook-form';
 import type { SelectOption } from '../types/common';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -100,7 +100,7 @@ interface AutocompleteCursorDropdownProps {
   isServerSearch?: boolean;
   isDisabled?: boolean;
   placeholderText?: string;
-  control?: Control<any>;
+  control?: any;
   name?: string;
 }
 
@@ -191,5 +191,5 @@ export function AutocompleteCursorDropdown({
       />
     );
   }
-  return renderAutocomplete(value, onChange, error, helperText);
+  return renderAutocomplete(value, onChange || (() => {}), error, helperText);
 }
