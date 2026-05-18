@@ -24,6 +24,8 @@ export default defineConfig({
     'react-select',
     'react-flatpickr',
     'clsx',
-    'tailwind-merge'
+    'tailwind-merge',
+    '@mescius/spread-sheets',
+    '@mescius/spread-excelio'
   ],
 });

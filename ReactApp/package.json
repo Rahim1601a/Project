@@ -17,6 +17,8 @@
     "@emotion/styled": "^11.14.1",
     "@fontsource/roboto": "^5.2.10",
     "@hookform/resolvers": "^5.2.2",
+    "@mescius/spread-excelio": "^19.1.0",
+    "@mescius/spread-sheets": "^19.1.0",
     "@mui/icons-material": "^9.0.0",
     "@mui/material": "^9.0.0",
     "@tanstack/react-query": "^5.100.6",

@@ -98,13 +98,18 @@ const RangeFilter = ({ column, localValue, setLocalValue }: FilterProps) => {
 };
 
 const AutocompleteFilter = ({ localValue, setLocalValue, options: rawOptions }: FilterProps) => {
-  const options = rawOptions.map((opt) => (typeof opt === 'string' ? { label: opt, value: opt } : opt));
+  const options = React.useMemo(
+    () =>
+      rawOptions.map((opt) => (typeof opt === 'string' ? { label: opt, value: opt } : { label: opt.label ?? String(opt.value), value: opt.value })),
+    [rawOptions]
+  );
+
   return (
     <Autocomplete
       size='small'
       options={options}
       getOptionLabel={(option: any) => option.label || option.value}
-      value={options.find((opt: any) => opt.value === localValue) || null}
+      value={options.find((opt: any) => String(opt.value) === String(localValue)) || null}
       onChange={(_, newValue) => setLocalValue(newValue?.value || undefined)}
       renderInput={(params) => <TextField {...params} placeholder='Select...' sx={{ mt: 0.5, width: '100%' }} />}
       sx={{ width: '100%' }}
@@ -175,9 +180,17 @@ const DateTimeRangeFilter = ({ localValue, setLocalValue }: FilterProps) => {
 };
 
 const MultiSelectFilter = ({ localValue, setLocalValue, options: rawOptions }: FilterProps) => {
-  const options = rawOptions.map((opt) => (typeof opt === 'string' ? { label: opt, value: opt } : opt));
-  const selectedValues = (localValue as string[]) ?? [];
-  const selectedOptions = options.filter((opt: any) => selectedValues.includes(opt.value));
+  const options = React.useMemo(
+    () =>
+      rawOptions.map((opt) => (typeof opt === 'string' ? { label: opt, value: opt } : { label: opt.label ?? String(opt.value), value: opt.value })),
+    [rawOptions]
+  );
+
+  const selectedValues: any[] = Array.isArray(localValue) ? localValue : [];
+
+  // ✅ FIX: safe comparison
+  const selectedOptions = options.filter((opt) => selectedValues.some((v) => String(v) === String(opt.value)));
+
   return (
     <Box sx={{ mt: 0.5, width: '100%' }}>
       <Select
@@ -188,11 +201,18 @@ const MultiSelectFilter = ({ localValue, setLocalValue, options: rawOptions }: F
         menuPosition='fixed'
         onChange={(newValues) => {
           const values = Array.isArray(newValues) ? newValues.map((v) => v.value) : [];
-          setLocalValue(values.length ? values : undefined);
+
+          setLocalValue(values.length > 0 ? values : undefined);
         }}
         styles={{
           container: (base) => ({ ...base, width: '100%' }),
-          control: (base) => ({ ...base, minHeight: 40, fontSize: '0.75rem', zIndex: 1, width: '100%' }),
+          control: (base) => ({
+            ...base,
+            minHeight: 40,
+            fontSize: '0.75rem',
+            zIndex: 1,
+            width: '100%',
+          }),
           menu: (base) => ({ ...base, zIndex: 9999 }),
           menuPortal: (base) => ({ ...base, zIndex: 9999 }),
         }}
@@ -274,8 +294,7 @@ const FILTER_COMPONENTS: Record<string, React.FC<FilterProps>> = {
 /* =========================================================
    Main ColumnFilter Component
 ========================================================= */
-
-export const ColumnFilter = React.memo(function ColumnFilter({
+export function ColumnFilter({
   column,
   filterOptions,
 }: {
@@ -283,43 +302,58 @@ export const ColumnFilter = React.memo(function ColumnFilter({
   filterOptions?: Record<string, Array<string | { label?: string; value: any }>>;
 }) {
   const variant = column.columnDef.filterVariant ?? 'text';
-  const columnFilterValue = column.getFilterValue();
+
   const accessorKey = typeof column.columnDef.accessorKey === 'string' ? column.columnDef.accessorKey : undefined;
 
   const columnFilterOptions = React.useMemo(() => (accessorKey ? (filterOptions?.[accessorKey] ?? []) : []), [accessorKey, filterOptions]);
 
-  // Local state for debouncing input to prevent lag and focus loss
+  const columnFilterValue = column.getFilterValue();
+
   const [localValue, setLocalValue] = React.useState(columnFilterValue);
-  const lastPushedValue = React.useRef(columnFilterValue);
 
-  // Sync external changes (e.g., clearing filters globally) to local state
+  const isEqual = (a: any, b: any) => JSON.stringify(a) === JSON.stringify(b);
+
+  // ✅ Prevent loop
   React.useEffect(() => {
-    if (columnFilterValue === undefined) {
-      setLocalValue(undefined);
-      lastPushedValue.current = undefined;
-      return;
-    }
-
-    if (JSON.stringify(columnFilterValue) !== JSON.stringify(lastPushedValue.current)) {
+    if (!isEqual(columnFilterValue, localValue)) {
       setLocalValue(columnFilterValue);
-      lastPushedValue.current = columnFilterValue;
     }
   }, [columnFilterValue]);
 
-  // Debounce effect to apply filter after user stops typing
+  // ✅ Prevent loop
   React.useEffect(() => {
+    if (isEqual(localValue, columnFilterValue)) return;
+
+    const instantVariants = [
+      'select',
+      'autocomplete',
+      'multi-select',
+      'checkbox',
+      'date',
+      'date-range',
+      'datetime',
+      'datetime-range',
+      'time',
+      'time-range',
+      'range',
+      'range-slider',
+    ];
+
+    if (instantVariants.includes(variant)) {
+      setFilterSafe(column, localValue);
+      return;
+    }
+
     const timeout = setTimeout(() => {
-      if (JSON.stringify(localValue) !== JSON.stringify(columnFilterValue)) {
-        lastPushedValue.current = localValue;
-        setFilterSafe(column, localValue);
-      }
+      setFilterSafe(column, localValue);
     }, 300);
+
     return () => clearTimeout(timeout);
-  }, [localValue, columnFilterValue, column]);
+  }, [localValue, columnFilterValue, column, variant]);
 
   if (!column.getCanFilter()) return null;
 
   const FilterComponent = FILTER_COMPONENTS[variant] || FILTER_COMPONENTS.text;
 
   return <FilterComponent column={column} localValue={localValue} setLocalValue={setLocalValue} options={columnFilterOptions} />;
-});
+}

@@ -1,64 +1,48 @@
-import type { ColumnSizingState } from '@tanstack/react-table';
+export const ROW_HEIGHTS = {
+  compact: 32,
+  comfortable: 48,
+  spacious: 64,
+};
 
-/* =========================================================
-   Layout Constants
-   Centralizes all magic numbers for maintainability
-========================================================= */
+export const HEADER_HEIGHTS = {
+  compact: 40,
+  comfortable: 56,
+  spacious: 72,
+};
 
-/** Fixed column widths for system columns (px) */
+export const CELL_PADDING_X = {
+  compact: '8px',
+  comfortable: '12px',
+  spacious: '16px',
+};
+
+export const CELL_PADDING_Y = {
+  compact: '4px',
+  comfortable: '8px',
+  spacious: '12px',
+};
+
+export const FONT_SIZES = {
+  compact: '0.8125rem',
+  comfortable: '0.875rem',
+  spacious: '1rem',
+};
+
+export const COLUMN_DEFAULTS = {
+  minSize: 60,
+  size: 150,
+  maxSize: 800,
+  responsiveMin: 100,
+  responsiveMax: 400,
+};
+
 export const FIXED_COLUMN_WIDTHS: Record<string, number> = {
+  __row_numbers__: 60,
   __select__: 50,
   __expand__: 50,
-  __row_numbers__: 50,
-  __actions__: 120,
-} as const;
+  __actions__: 100,
+};
 
-/** System column IDs that should not be user-configurable */
-export const SYSTEM_COLUMN_IDS = Object.keys(FIXED_COLUMN_WIDTHS);
-
-/** Default column sizing constraints */
-export const COLUMN_DEFAULTS = {
-  minSize: 80,
-  size: 60,
-  maxSize: 600,
-  responsiveMin: 75,
-  responsiveMax: 250,
-} as const;
-
-/** Layout modes for column sizing (MRT compatible) */
-export const LAYOUT_MODES = {
-  GRID: 'grid' as const,
-  GRID_NO_GROW: 'grid-no-grow' as const,
-  SEMANTIC: 'semantic' as const,
-} as const;
-export type LayoutMode = typeof LAYOUT_MODES[keyof typeof LAYOUT_MODES];
-
-/** Row heights by density (px) */
-export const ROW_HEIGHTS: Record<string, number> = {
-  small: 44,
-  medium: 56,
-  large: 72,
-} as const;
-
-/** Cell padding by density */
-export const CELL_PADDING: Record<string, { action: string; data: string }> = {
-  small: { action: '0px 8px', data: '6px 12px' },
-  medium: { action: '0px 12px', data: '10px 16px' },
-  large: { action: '0px 16px', data: '14px 20px' },
-} as const;
-
-/** Virtualizer overscan rows */
-export const VIRTUALIZER_OVERSCAN = 10;
-
-/** Scrollbar and padding buffer for responsive sizing */
-export const SCROLL_BUFFER = 25;
-
-/** Default pagination */
-export const DEFAULT_PAGE_SIZE = 10;
-export const PAGE_SIZE_OPTIONS = [5, 10, 25, 50, 100] as const;
-
-/** Default pinning config */
-export const DEFAULT_PINNING = { left: ['__select__', '__actions__'], right: [] as string[] } as const;
-
-/** Empty column sizing state */
-export const EMPTY_SIZING: ColumnSizingState = {};
+export const VIRTUALIZER_OVERSCAN = 5;
+export const SCROLL_BUFFER = 16;
+export const PAGE_SIZE_OPTIONS = [5, 10, 25, 50, 100];

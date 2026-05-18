@@ -1,8 +1,8 @@
-import React, { memo, useState } from 'react';
+import React, { useState } from 'react';
 import { IconButton, Menu } from '@mui/material';
 import { MoreVert } from '@mui/icons-material';
 
-export const RowActionMenu = memo(function RowActionMenu({ row, render }: { row: any; render?: (row: any, close: () => void) => React.ReactNode }) {
+export function RowActionMenu({ row, render }: { row: any; render?: (row: any, close: () => void) => React.ReactNode }) {
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
 
   return (
@@ -21,4 +21,4 @@ export const RowActionMenu = memo(function RowActionMenu({ row, render }: { row:
       </Menu>
     </>
   );
-});
+}

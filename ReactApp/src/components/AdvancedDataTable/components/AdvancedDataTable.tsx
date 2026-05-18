@@ -1,11 +1,11 @@
-import React, { memo, useRef, useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useRef, useState, useMemo, useCallback, useEffect } from 'react';
 import { Box, Snackbar, Alert, Typography } from '@mui/material';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import type { DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, horizontalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
 import { flexRender } from '@tanstack/react-table';
 
-import type { AdvancedDataTableProps } from '../types/types';
+import type { AdvancedDataTableProps, ADTExportParams } from '../types/types';
 import { useAdvancedDataTable } from '../hooks/useAdvancedDataTable';
 import { useColumnSizing } from '../hooks/useColumnSizing';
 import { useDensity } from '../hooks/useDensity';
@@ -14,6 +14,7 @@ import { AdvancedDataTableToolbar } from './AdvancedDataTableToolbar';
 import { AdvancedDataTableHeader } from './AdvancedDataTableHeader';
 import { AdvancedDataTableBody } from './AdvancedDataTableBody';
 import { AdvancedDataTablePagination } from './AdvancedDataTablePagination';
+import { exportTableData } from '../utils/export';
 
 function AdvancedDataTableInner<T extends object>(props: AdvancedDataTableProps<T>) {
   const {
@@ -26,6 +27,7 @@ function AdvancedDataTableInner<T extends object>(props: AdvancedDataTableProps<
     enableColumnOrdering,
     enableColumnPinning,
     enableColumnResizing,
+    enableGrouping,
     layoutMode = 'grid',
     renderTopToolbarCustomActions,
     renderBottomToolbarCustomActions,
@@ -44,14 +46,14 @@ function AdvancedDataTableInner<T extends object>(props: AdvancedDataTableProps<
   // 2. State Hooks
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
-  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'info' }>({
+  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'info' | 'error' }>({
     open: false,
     message: '',
     severity: 'info',
   });
 
   // 3. Custom Logic Hooks
-  const { density, setDensity, densityStyles } = useDensity(initialDensity);
+  const { densityStyles } = useDensity(state.density);
   const { setColumnSizing } = useColumnSizing(table, tableContainerRef, layoutMode, dispatch);
 
   // 4. Callback Hooks
@@ -81,14 +83,68 @@ function AdvancedDataTableInner<T extends object>(props: AdvancedDataTableProps<
         }
       }
     },
-    [state.columnOrder, table, dispatch],
+    [state.columnOrder, table, dispatch]
+  );
+
+  const handleExport = useCallback(
+    async (params: ADTExportParams) => {
+      try {
+        if (props.onExport) {
+          await props.onExport(params);
+
+          setSnackbar({
+            open: true,
+            message: `Export ${params.type.toUpperCase()} completed`,
+            severity: 'success',
+          });
+
+          return;
+        }
+
+        const selectedRows = table.getSelectedRowModel().flatRows;
+
+        const rowsToExport = selectedRows.length > 0 ? selectedRows : table.getPrePaginationRowModel().flatRows;
+
+        if (!rowsToExport.length) {
+          setSnackbar({
+            open: true,
+            message: 'No rows available to export',
+            severity: 'info',
+          });
+
+          return;
+        }
+
+        await exportTableData({
+          type: params.type,
+          rows: rowsToExport,
+          table,
+          fileName: title || 'export',
+        });
+
+        setSnackbar({
+          open: true,
+          message: `${params.type.toUpperCase()} exported successfully`,
+          severity: 'success',
+        });
+      } catch (error: any) {
+        console.error('Export failed:', error);
+
+        setSnackbar({
+          open: true,
+          message: error?.message || 'Export failed',
+          severity: 'error',
+        });
+      }
+    },
+    [props, table, title]
   );
 
   // 5. Memo Hooks
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
   const columnOrder = useMemo(
     () => (state.columnOrder.length ? state.columnOrder : table.getAllLeafColumns().map((c) => c.id)),
-    [state.columnOrder, table],
+    [state.columnOrder, table]
   );
 
   // 6. Effect Hooks (Placed at the end of the hook section to maintain order stability)
@@ -114,12 +170,9 @@ function AdvancedDataTableInner<T extends object>(props: AdvancedDataTableProps<
         toggleFullScreen={toggleFullScreen}
         showFilters={showFilters}
         setShowFilters={setShowFilters}
-        density={density}
-        setDensity={(d) => {
-          setDensity(d);
-          dispatch({ type: 'SET_DENSITY', payload: d });
-        }}
-        onExport={props.onExport}
+        density={state.density}
+        setDensity={(d) => dispatch({ type: 'SET_DENSITY', payload: d })}
+        onExport={handleExport}
         renderTopToolbarCustomActions={renderTopToolbarCustomActions}
         resetState={() => dispatch({ type: 'RESET_STATE', payload: { ...state, density: initialDensity } })}
       />
@@ -133,8 +186,12 @@ function AdvancedDataTableInner<T extends object>(props: AdvancedDataTableProps<
               enableColumnOrdering={enableColumnOrdering}
               enableColumnPinning={enableColumnPinning}
               enableColumnResizing={enableColumnResizing}
+              enableColumnGrouping={enableGrouping}
               showFilters={showFilters}
               columnSizing={state.columnSizing}
+              columnPinning={state.columnPinning}
+              columnOrder={state.columnOrder}
+              columnFilters={state.columnFilters}
               setColumnSizing={setColumnSizing}
             />
 
@@ -142,7 +199,10 @@ function AdvancedDataTableInner<T extends object>(props: AdvancedDataTableProps<
               table={table}
               tableContainerRef={tableContainerRef}
               loading={loading}
-              density={density}
+              density={state.density}
+              columnSizing={state.columnSizing}
+              columnVisibility={state.columnVisibility}
+              columnFilters={state.columnFilters}
               onScrollEnd={onScrollEnd}
               renderDetailPanel={renderDetailPanel}
             />
@@ -150,10 +210,13 @@ function AdvancedDataTableInner<T extends object>(props: AdvancedDataTableProps<
             {enableColumnFooters && (
               <Box sx={{ borderTop: '2px solid var(--adt-border-color)', backgroundColor: 'var(--adt-header-bg)' }}>
                 {table.getFooterGroups().map((footerGroup) => (
-                  <Box key={footerGroup.id} sx={{ display: 'flex', width: table.getTotalSize(), minWidth: '100%', borderBottom: '2px solid var(--adt-border-color)' }}>
+                  <Box
+                    key={footerGroup.id}
+                    sx={{ display: 'flex', width: table.getTotalSize(), minWidth: '100%', borderBottom: '2px solid var(--adt-border-color)' }}
+                  >
                     {/* Left Pinned Footers */}
                     {footerGroup.headers
-                      .filter(h => h.column.getIsPinned() === 'left')
+                      .filter((h) => h.column.getIsPinned() === 'left')
                       .map((header) => (
                         <Box
                           key={header.id}
@@ -175,7 +238,7 @@ function AdvancedDataTableInner<T extends object>(props: AdvancedDataTableProps<
 
                     {/* Unpinned Footers (Not virtualized for simplicity in footer, but following same order) */}
                     {footerGroup.headers
-                      .filter(h => !h.column.getIsPinned())
+                      .filter((h) => !h.column.getIsPinned())
                       .map((header) => (
                         <Box
                           key={header.id}
@@ -193,7 +256,7 @@ function AdvancedDataTableInner<T extends object>(props: AdvancedDataTableProps<
 
                     {/* Right Pinned Footers */}
                     {footerGroup.headers
-                      .filter(h => h.column.getIsPinned() === 'right')
+                      .filter((h) => h.column.getIsPinned() === 'right')
                       .map((header) => (
                         <Box
                           key={header.id}
@@ -248,9 +311,18 @@ class AdvancedDataTableErrorBoundary extends React.Component<any, { hasError: bo
   render() {
     if (this.state.hasError) {
       return (
-        <Box sx={{ p: 4, textAlign: 'center', border: '1px solid var(--adt-border-color)', borderRadius: 2, bgcolor: 'error.light', color: 'error.contrastText' }}>
-          <Typography variant="h6">Something went wrong in the data table.</Typography>
-          <Typography variant="body2">{this.state.error?.message}</Typography>
+        <Box
+          sx={{
+            p: 4,
+            textAlign: 'center',
+            border: '1px solid var(--adt-border-color)',
+            borderRadius: 2,
+            bgcolor: 'error.light',
+            color: 'error.contrastText',
+          }}
+        >
+          <Typography variant='h6'>Something went wrong in the data table.</Typography>
+          <Typography variant='body2'>{this.state.error?.message}</Typography>
         </Box>
       );
     }
@@ -258,8 +330,8 @@ class AdvancedDataTableErrorBoundary extends React.Component<any, { hasError: bo
   }
 }
 
-export const AdvancedDataTable = memo((props: AdvancedDataTableProps<any>) => (
+export const AdvancedDataTable = (props: AdvancedDataTableProps<any>) => (
   <AdvancedDataTableErrorBoundary>
     <AdvancedDataTableInner {...props} />
   </AdvancedDataTableErrorBoundary>
-)) as typeof AdvancedDataTableInner;
+);

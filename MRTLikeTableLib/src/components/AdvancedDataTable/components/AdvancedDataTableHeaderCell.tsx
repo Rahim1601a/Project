@@ -1,277 +1,257 @@
-import React, { memo, useState } from 'react';
-import { Box, Typography, IconButton, Menu, MenuItem, ListItemIcon, ListItemText } from '@mui/material';
-import { PushPin, ViewModule } from '@mui/icons-material';
-import type { VisibilityState } from '@tanstack/react-table';
+import React, { useState } from 'react';
+import { Box, Typography, IconButton, Tooltip, Menu, MenuItem } from '@mui/material';
+import { ArrowDownward, ArrowUpward, MoreVert, DragIndicator, GroupWork, GroupOff } from '@mui/icons-material';
+import type { Header } from '@tanstack/react-table';
 import { flexRender } from '@tanstack/react-table';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { ADTHeaderCellWrapper, ADTResizeHandle } from './AdvancedDataTable.styles';
+import type { ADT_ColumnDef, ADTMeta } from '../types/types';
 import { ColumnFilter } from './ColumnFilter';
-import { CELL_PADDING, SYSTEM_COLUMN_IDS } from '../utils/constants';
-import { autoSizeColumn } from '../utils/autoSizeColumn';
 
-/* =========================================================
-   Draggable Header
-========================================================= */
+interface Props<T extends object> {
+  header: Header<T, unknown>;
+  style?: React.CSSProperties;
+  enableColumnOrdering?: boolean;
+  enableColumnPinning?: boolean;
+  enableColumnResizing?: boolean;
+  enableColumnGrouping?: boolean;
+  showFilters?: boolean;
+  columnSizing: Record<string, number>;
+  setColumnSizing: (sizing: any) => void;
+}
 
-const DraggableHeader = memo(function DraggableHeader({
-  id,
-  children,
-  isSortable,
-  isSorted,
-  onSort,
-}: {
-  id: string;
-  children: React.ReactNode;
-  isSortable?: boolean;
-  isSorted?: false | 'asc' | 'desc';
-  onSort?: (event: unknown) => void;
-}) {
-  const { setNodeRef, attributes, listeners, transform, transition, isDragging } = useSortable({ id });
-
-  const style: React.CSSProperties = {
-    transform: CSS.Translate.toString(transform),
-    transition,
-    display: 'flex',
-    alignItems: 'center',
-    gap: 4,
-    cursor: isDragging ? 'grabbing' : 'grab',
-    opacity: isDragging ? 0.5 : 1,
-    whiteSpace: 'nowrap',
-    fontWeight: 600,
-  };
-
-  return (
-    <Box ref={setNodeRef} style={style} {...attributes} {...listeners}>
-      <Box
-        component='span'
-        onClick={isSortable ? onSort : undefined}
-        sx={{
-          cursor: isSortable ? 'pointer' : 'inherit',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 1,
-          '&:hover': isSortable ? { color: 'primary.main' } : {},
-        }}
-      >
-        {children}
-        {isSorted && (
-          <Typography variant='caption' sx={{ color: 'primary.main', fontWeight: 'bold' }}>
-            {isSorted === 'asc' ? '↑' : '↓'}
-          </Typography>
-        )}
-      </Box>
-    </Box>
-  );
-});
-
-/* =========================================================
-   Resize Handle
-========================================================= */
-
-const ResizeHandle = memo(function ResizeHandle({ header, columnResizeDirection = 'ltr' }: { header: any; columnResizeDirection?: 'ltr' | 'rtl' }) {
-  if (!header.column.getCanResize()) return null;
-
-  const isResizing = header.column.getIsResizing();
-  const isRTL = columnResizeDirection === 'rtl';
-
-  return (
-    <Box
-      onMouseDown={header.getResizeHandler()}
-      onTouchStart={header.getResizeHandler()}
-      onDoubleClick={(e) => {
-        e.stopPropagation();
-        autoSizeColumn(header.getContext().table, header.column.id);
-      }}
-      sx={{
-        position: 'absolute',
-        top: 0,
-        [isRTL ? 'left' : 'right']: 0,
-        height: '100%',
-        width: '6px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        cursor: 'col-resize',
-        zIndex: 5,
-        [isRTL ? 'marginLeft' : 'marginRight']: '-2px',
-        userSelect: 'none',
-
-        // invisible by default
-        '&::before': {
-          content: '""',
-          position: 'absolute',
-          [isRTL ? 'left' : 'right']: '2px',
-          width: '2px',
-          height: '60%',
-          borderRadius: '2px',
-          backgroundColor: isResizing ? 'primary.main' : 'divider',
-          transition: 'all 0.2s ease',
-        },
-
-        // hover effect (like MRT)
-        '&:hover::before': {
-          backgroundColor: 'primary.main',
-          height: '80%',
-          width: '3px',
-        },
-
-        // active resizing state
-        ...(isResizing && {
-          '&::before': {
-            width: '3px',
-            backgroundColor: 'primary.main',
-            height: '90%',
-          },
-        }),
-      }}
-    />
-  );
-});
-
-/* =========================================================
-   Memoized Header Cell
-========================================================= */
-
-export const AdvancedDataTableHeaderCell = memo(function AdvancedDataTableHeaderCell({
+function AdvancedDataTableHeaderCellInner<T extends object>({
   header,
-  density,
+  style: externalStyle,
   enableColumnOrdering,
   enableColumnPinning,
-  enableGrouping,
+  enableColumnResizing,
+  enableColumnGrouping,
   showFilters,
-  filterOptions,
-  columnResizeDirection = 'ltr',
-}: {
-  header: any;
-  density: string;
-  enableColumnOrdering: boolean;
-  enableColumnPinning: boolean;
-  enableGrouping: boolean;
-  showFilters: boolean;
-  columnVisibility: VisibilityState;
-  isAllSelected: boolean;
-  isSomeSelected: boolean;
-  columnSizing: any;
-  filterOptions?: Record<string, Array<string | { label?: string; value: any }>>;
-  columnResizeDirection?: 'ltr' | 'rtl';
-}) {
-  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-  const handleOpen = (event: React.MouseEvent<HTMLElement>) => setAnchorEl(event.currentTarget);
-  const handleClose = () => setAnchorEl(null);
+}: Props<T>) {
+  const { column } = header;
+  const colDef = column.columnDef as ADT_ColumnDef<T>;
+  const isPinned = column.getIsPinned();
+  const isDisplayColumn = column.id.startsWith('__');
 
-  const isPinned = header.column.getIsPinned();
-  const grow = (header.column.columnDef as any).grow;
-  const size = header.getSize();
-  const style: React.CSSProperties = {
-    flexBasis: grow ? 1 : size,
-    width: grow ? 0 : size,
-    minWidth: grow ? 100 : size,
-    flexShrink: 0,
+  const [pinMenuAnchor, setPinMenuAnchor] = useState<HTMLElement | null>(null);
+  const isPinMenuOpen = Boolean(pinMenuAnchor);
 
-    position: isPinned ? 'sticky' : 'relative',
-    left: isPinned === 'left' ? header.column.getStart('left') : undefined,
-    right: isPinned === 'right' ? header.column.getAfter('right') : undefined,
-    zIndex: isPinned ? 3 : 1,
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: column.id,
+    disabled: !enableColumnOrdering || isDisplayColumn,
+  });
+
+  const finalStyle: React.CSSProperties = {
+    ...externalStyle,
+    transform: externalStyle?.transform ?? CSS.Translate.toString(transform),
+    transition,
+    opacity: isDragging ? 0.6 : 1,
+    zIndex: isDragging ? 30 : isPinned ? 25 : 1,
+    width: externalStyle?.width ?? header.getSize(),
+    minWidth: externalStyle?.minWidth ?? header.getSize(),
+    ...(isPinned === 'left' ? { left: column.getStart('left'), position: 'sticky', zIndex: 25 } : {}),
+    ...(isPinned === 'right' ? { right: column.getAfter('right'), position: 'sticky', zIndex: 25 } : {}),
   };
 
-  const isActionColumn = SYSTEM_COLUMN_IDS.some((id) => header.column.id === id);
-  const padding = CELL_PADDING[density] ?? CELL_PADDING.small;
-  const headerPadding = isActionColumn ? padding.action : padding.data;
-  const isSystemColumn = SYSTEM_COLUMN_IDS.includes(header.column.id);
+  const handleSort = (e: React.MouseEvent) => {
+    if (column.getCanSort()) {
+      column.getToggleSortingHandler()?.(e);
+    }
+  };
+
+  const openPinMenu = (event: React.MouseEvent<HTMLElement>) => {
+    event.stopPropagation();
+    setPinMenuAnchor(event.currentTarget);
+  };
+
+  const closePinMenu = () => setPinMenuAnchor(null);
+
+  const handlePinSelection = (position: 'left' | 'right' | false) => {
+    column.pin(position);
+    closePinMenu();
+  };
+
+  const handleAutoSize = async () => {
+    closePinMenu();
+
+    const table = header.getContext().table;
+    const rows = table.getRowModel().rows;
+    const headerText = typeof colDef.header === 'string' ? colDef.header : column.id;
+    const headerWidth = headerText.length * 8 + 32;
+
+    const cellMaxWidth = rows.reduce((max: number, row: any) => {
+      const value = row.getValue(column.id);
+      const text = value ? String(value) : '';
+      const width = text.length * 7 + 24;
+      return Math.max(max, width);
+    }, 0);
+
+    const finalWidth = Math.max(120, headerWidth, cellMaxWidth);
+    table.setColumnSizing((prev: any) => ({ ...prev, [column.id]: Math.min(finalWidth, colDef.maxSize ?? 1000) }));
+  };
+
+  const handleResizeStart = (event: React.PointerEvent | React.MouseEvent | React.TouchEvent) => {
+    event.stopPropagation();
+
+    if ('detail' in event && event.detail === 2) {
+      return;
+    }
+
+    header.getResizeHandler()(event as any);
+  };
+
+  const canGroupColumn = enableColumnGrouping && !isDisplayColumn && column.getCanGroup();
 
   return (
-    <Box
+    <ADTHeaderCellWrapper
       role='columnheader'
-      data-grow={grow ? 'true' : 'false'}
-      style={style}
-      className={`advanced-data-table__header-cell ${isActionColumn ? 'advanced-data-table__header-cell--action' : 'advanced-data-table__header-cell--data'}`}
-      sx={{
-        p: headerPadding,
-        zIndex: isPinned ? 3 : 1,
-      }}
+      aria-sort={column.getIsSorted() === 'desc' ? 'descending' : column.getIsSorted() === 'asc' ? 'ascending' : 'none'}
+      ref={setNodeRef}
+      style={finalStyle}
+      isPinned={!!isPinned}
+      grow={colDef.grow}
     >
-      {isActionColumn ? (
-        <Box className='advanced-data-table__action-cell-content'>{flexRender(header.column.columnDef.header, header.getContext())}</Box>
-      ) : (
-        <Box className='advanced-data-table__header-content'>
-          <Box className='advanced-data-table__header-title-row'>
-            {enableColumnOrdering && !isSystemColumn ? (
-              <DraggableHeader
-                id={header.id}
-                isSortable={header.column.getCanSort()}
-                isSorted={header.column.getIsSorted()}
-                onSort={header.column.getToggleSortingHandler()}
-              >
-                {flexRender(header.column.columnDef.header, header.getContext())}
-              </DraggableHeader>
-            ) : (
-              <Box
-                className='advanced-data-table__draggable-header-title'
-                sx={{
-                  cursor: header.column.getCanSort() ? 'pointer' : 'default',
-                }}
-                onClick={header.column.getToggleSortingHandler()}
-              >
-                {flexRender(header.column.columnDef.header, header.getContext())}
-                {header.column.getIsSorted() && (
-                  <Typography variant='caption' className='advanced-data-table__header-sort-icon'>
-                    {header.column.getIsSorted() === 'asc' ? '↑' : '↓'}
-                  </Typography>
-                )}
-              </Box>
-            )}
-
-            {enableGrouping && header.column.getCanGroup() && (
-              <IconButton
-                size='small'
-                onClick={() => header.column.toggleGrouping()}
-                className={`advanced-data-table__grouping-button ${header.column.getIsGrouped() ? 'is-grouped' : ''}`}
-              >
-                <ViewModule sx={{ fontSize: '0.9rem' }} />
-              </IconButton>
-            )}
-
-            {enableColumnPinning && !header.column.id.startsWith('__') && (
-              <>
-                <IconButton
-                  size='small'
-                  onClick={handleOpen}
-                  className={`advanced-data-table__pin-button ${header.column.getIsPinned() ? 'is-pinned' : ''}`}
-                >
-                  <PushPin sx={{ fontSize: '0.9rem', transform: header.column.getIsPinned() ? 'rotate(45deg)' : 'none' }} />
-                </IconButton>
-                <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={handleClose}>
-                  <MenuItem
-                    onClick={() => {
-                      header.column.pin(header.column.getIsPinned() === 'left' ? false : 'left');
-                      handleClose();
-                    }}
-                  >
-                    <ListItemIcon>
-                      <PushPin fontSize='small' />
-                    </ListItemIcon>
-                    <ListItemText>{header.column.getIsPinned() === 'left' ? 'Unpin' : 'Pin Left'}</ListItemText>
-                  </MenuItem>
-                  <MenuItem
-                    onClick={() => {
-                      header.column.pin(header.column.getIsPinned() === 'right' ? false : 'right');
-                      handleClose();
-                    }}
-                  >
-                    <ListItemIcon>
-                      <PushPin fontSize='small' />
-                    </ListItemIcon>
-                    <ListItemText>{header.column.getIsPinned() === 'right' ? 'Unpin' : 'Pin Right'}</ListItemText>
-                  </MenuItem>
-                </Menu>
-              </>
-            )}
+      <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', minWidth: 0, mb: showFilters ? 1 : 0 }}>
+        {enableColumnOrdering && !isDisplayColumn && (
+          <Box
+            {...attributes}
+            {...listeners}
+            sx={{ cursor: 'grab', display: 'flex', mr: 0.5, opacity: 0.5, flexShrink: 0, '&:hover': { opacity: 1 } }}
+          >
+            <DragIndicator fontSize='small' />
           </Box>
+        )}
 
-          {showFilters && header.column.getCanFilter() && <ColumnFilter column={header.column} filterOptions={filterOptions} />}
+        {canGroupColumn && (
+          <Tooltip title={column.getIsGrouped() ? 'Remove grouping' : 'Group by this column'}>
+            <IconButton
+              size='small'
+              onClick={(e) => {
+                e.stopPropagation();
+                column.toggleGrouping();
+              }}
+              sx={{
+                p: 0.25,
+                mr: 0.25,
+                opacity: column.getIsGrouped() ? 1 : 0.35,
+                flexShrink: 0,
+              }}
+            >
+              {column.getIsGrouped() ? <GroupWork fontSize='small' /> : <GroupOff fontSize='small' />}
+            </IconButton>
+          </Tooltip>
+        )}
+
+        <Box
+          onClick={handleSort}
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            flexGrow: 1,
+            minWidth: 0,
+            cursor: column.getCanSort() ? 'pointer' : 'default',
+            overflow: 'hidden',
+          }}
+        >
+          <Typography
+            variant='subtitle2'
+            sx={{
+              fontWeight: 600,
+              fontSize: '0.875rem',
+              lineHeight: 1.2,
+              minWidth: 0,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {header.isPlaceholder ? null : flexRender(colDef.header, header.getContext())}
+          </Typography>
+
+          {column.getIsSorted() && (
+            <Box
+              sx={{
+                ml: 0.5,
+                display: 'flex',
+                color: 'primary.main',
+                flexShrink: 0,
+              }}
+            >
+              {column.getIsSorted() === 'desc' ? <ArrowDownward fontSize='inherit' /> : <ArrowUpward fontSize='inherit' />}
+            </Box>
+          )}
+        </Box>
+
+        {enableColumnPinning && !isDisplayColumn && column.getCanPin?.() !== false && (
+          <>
+            <IconButton
+              size='small'
+              onClick={openPinMenu}
+              sx={{ p: 0.25, opacity: 0.7, flexShrink: 0 }}
+            >
+              <MoreVert sx={{ fontSize: '1rem' }} />
+            </IconButton>
+
+            <Menu
+              anchorEl={pinMenuAnchor}
+              open={isPinMenuOpen}
+              onClose={closePinMenu}
+              anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+              transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <MenuItem onClick={() => handlePinSelection('left')} selected={isPinned === 'left'}>
+                {isPinned === 'left' ? 'Unpin from left' : 'Pin left'}
+              </MenuItem>
+              <MenuItem onClick={() => handlePinSelection('right')} selected={isPinned === 'right'}>
+                {isPinned === 'right' ? 'Unpin from right' : 'Pin right'}
+              </MenuItem>
+              <MenuItem onClick={() => handlePinSelection(false)} disabled={!isPinned}>
+                Unpin
+              </MenuItem>
+              {enableColumnResizing && (
+                <MenuItem onClick={handleAutoSize}>Auto-size column</MenuItem>
+              )}
+            </Menu>
+          </>
+        )}
+      </Box>
+
+      {showFilters && column.getCanFilter() && (
+        <Box
+          onClick={(event) => event.stopPropagation()}
+          sx={{
+            width: '100%',
+            minWidth: 0,
+          }}
+        >
+          <ColumnFilter column={column} filterOptions={(header.getContext().table.options.meta as ADTMeta<T>)?.filterOptions} />
         </Box>
       )}
-      <ResizeHandle header={header} columnResizeDirection={columnResizeDirection} />
-    </Box>
+
+      {enableColumnResizing && column.getCanResize() && (
+        <ADTResizeHandle
+          onPointerDown={handleResizeStart}
+          onTouchStart={handleResizeStart}
+          onClick={(e) => {
+            if (e.detail === 2) {
+              e.stopPropagation();
+              e.preventDefault();
+              handleAutoSize();
+            }
+          }}
+          onDoubleClick={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            handleAutoSize();
+          }}
+          isResizing={column.getIsResizing()}
+        />
+      )}
+    </ADTHeaderCellWrapper>
   );
-});
+}
+
+export const AdvancedDataTableHeaderCell = AdvancedDataTableHeaderCellInner;

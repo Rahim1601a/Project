@@ -1,7 +1,6 @@
-import type React from 'react';
-import { memo } from 'react';
-import { Box, Typography, IconButton } from '@mui/material';
-import { ArrowDownward, ArrowUpward, PushPin, DragIndicator } from '@mui/icons-material';
+import React, { useState } from 'react';
+import { Box, Typography, IconButton, Tooltip, Menu, MenuItem } from '@mui/material';
+import { ArrowDownward, ArrowUpward, MoreVert, DragIndicator, GroupWork, GroupOff } from '@mui/icons-material';
 import type { Header } from '@tanstack/react-table';
 import { flexRender } from '@tanstack/react-table';
 import { useSortable } from '@dnd-kit/sortable';
@@ -16,6 +15,7 @@ interface Props<T extends object> {
   enableColumnOrdering?: boolean;
   enableColumnPinning?: boolean;
   enableColumnResizing?: boolean;
+  enableColumnGrouping?: boolean;
   showFilters?: boolean;
   columnSizing: Record<string, number>;
   setColumnSizing: (sizing: any) => void;
@@ -27,15 +27,20 @@ function AdvancedDataTableHeaderCellInner<T extends object>({
   enableColumnOrdering,
   enableColumnPinning,
   enableColumnResizing,
+  enableColumnGrouping,
   showFilters,
 }: Props<T>) {
   const { column } = header;
   const colDef = column.columnDef as ADT_ColumnDef<T>;
   const isPinned = column.getIsPinned();
+  const isDisplayColumn = column.id.startsWith('__');
+
+  const [pinMenuAnchor, setPinMenuAnchor] = useState<HTMLElement | null>(null);
+  const isPinMenuOpen = Boolean(pinMenuAnchor);
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: column.id,
-    disabled: !enableColumnOrdering || column.id.startsWith('__'),
+    disabled: !enableColumnOrdering || isDisplayColumn,
   });
 
   const finalStyle: React.CSSProperties = {
@@ -43,8 +48,9 @@ function AdvancedDataTableHeaderCellInner<T extends object>({
     transform: externalStyle?.transform ?? CSS.Translate.toString(transform),
     transition,
     opacity: isDragging ? 0.6 : 1,
-    zIndex: isDragging ? 30 : isPinned ? 21 : 1,
+    zIndex: isDragging ? 30 : isPinned ? 25 : 1,
     width: externalStyle?.width ?? header.getSize(),
+    minWidth: externalStyle?.minWidth ?? header.getSize(),
     ...(isPinned === 'left' ? { left: column.getStart('left'), position: 'sticky', zIndex: 25 } : {}),
     ...(isPinned === 'right' ? { right: column.getAfter('right'), position: 'sticky', zIndex: 25 } : {}),
   };
@@ -55,20 +61,87 @@ function AdvancedDataTableHeaderCellInner<T extends object>({
     }
   };
 
+  const openPinMenu = (event: React.MouseEvent<HTMLElement>) => {
+    event.stopPropagation();
+    setPinMenuAnchor(event.currentTarget);
+  };
+
+  const closePinMenu = () => setPinMenuAnchor(null);
+
+  const handlePinSelection = (position: 'left' | 'right' | false) => {
+    column.pin(position);
+    closePinMenu();
+  };
+
+  const handleAutoSize = async () => {
+    closePinMenu();
+
+    const table = header.getContext().table;
+    const rows = table.getRowModel().rows;
+    const headerText = typeof colDef.header === 'string' ? colDef.header : column.id;
+    const headerWidth = headerText.length * 8 + 32;
+
+    const cellMaxWidth = rows.reduce((max: number, row: any) => {
+      const value = row.getValue(column.id);
+      const text = value ? String(value) : '';
+      const width = text.length * 7 + 24;
+      return Math.max(max, width);
+    }, 0);
+
+    const finalWidth = Math.max(120, headerWidth, cellMaxWidth);
+    table.setColumnSizing((prev: any) => ({ ...prev, [column.id]: Math.min(finalWidth, colDef.maxSize ?? 1000) }));
+  };
+
+  const handleResizeStart = (event: React.PointerEvent | React.MouseEvent | React.TouchEvent) => {
+    event.stopPropagation();
+
+    if ('detail' in event && event.detail === 2) {
+      return;
+    }
+
+    header.getResizeHandler()(event as any);
+  };
+
+  const canGroupColumn = enableColumnGrouping && !isDisplayColumn && column.getCanGroup();
+
   return (
-    <ADTHeaderCellWrapper 
-      role='columnheader' 
+    <ADTHeaderCellWrapper
+      role='columnheader'
       aria-sort={column.getIsSorted() === 'desc' ? 'descending' : column.getIsSorted() === 'asc' ? 'ascending' : 'none'}
-      ref={setNodeRef} 
-      style={finalStyle} 
-      isPinned={!!isPinned} 
+      ref={setNodeRef}
+      style={finalStyle}
+      isPinned={!!isPinned}
       grow={colDef.grow}
     >
-      <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', mb: showFilters ? 1 : 0 }}>
-        {enableColumnOrdering && !column.id.startsWith('__') && (
-          <Box {...attributes} {...listeners} sx={{ cursor: 'grab', display: 'flex', mr: 0.5, opacity: 0.5, '&:hover': { opacity: 1 } }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', minWidth: 0, mb: showFilters ? 1 : 0 }}>
+        {enableColumnOrdering && !isDisplayColumn && (
+          <Box
+            {...attributes}
+            {...listeners}
+            sx={{ cursor: 'grab', display: 'flex', mr: 0.5, opacity: 0.5, flexShrink: 0, '&:hover': { opacity: 1 } }}
+          >
             <DragIndicator fontSize='small' />
           </Box>
+        )}
+
+        {canGroupColumn && (
+          <Tooltip title={column.getIsGrouped() ? 'Remove grouping' : 'Group by this column'}>
+            <IconButton
+              size='small'
+              onClick={(e) => {
+                e.stopPropagation();
+                column.toggleGrouping();
+              }}
+              sx={{
+                p: 0.25,
+                mr: 0.25,
+                opacity: column.getIsGrouped() ? 1 : 0.35,
+                flexShrink: 0,
+              }}
+            >
+              {column.getIsGrouped() ? <GroupWork fontSize='small' /> : <GroupOff fontSize='small' />}
+            </IconButton>
+          </Tooltip>
         )}
 
         <Box
@@ -77,51 +150,102 @@ function AdvancedDataTableHeaderCellInner<T extends object>({
             display: 'flex',
             alignItems: 'center',
             flexGrow: 1,
+            minWidth: 0,
             cursor: column.getCanSort() ? 'pointer' : 'default',
             overflow: 'hidden',
           }}
         >
-          <Typography variant='subtitle2' sx={{ fontWeight: 600, fontSize: '0.875rem', lineHeight: 1.2 }}>
-            {flexRender(colDef.header, header.getContext())}
+          <Typography
+            variant='subtitle2'
+            sx={{
+              fontWeight: 600,
+              fontSize: '0.875rem',
+              lineHeight: 1.2,
+              minWidth: 0,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {header.isPlaceholder ? null : flexRender(colDef.header, header.getContext())}
           </Typography>
-          
+
           {column.getIsSorted() && (
-            <Box sx={{ ml: 0.5, display: 'flex', color: 'primary.main' }}>
+            <Box
+              sx={{
+                ml: 0.5,
+                display: 'flex',
+                color: 'primary.main',
+                flexShrink: 0,
+              }}
+            >
               {column.getIsSorted() === 'desc' ? <ArrowDownward fontSize='inherit' /> : <ArrowUpward fontSize='inherit' />}
             </Box>
           )}
         </Box>
 
-        {enableColumnPinning && !column.id.startsWith('__') && (
-          <IconButton size='small' onClick={() => column.pin(isPinned ? false : 'left')} sx={{ p: 0.25, opacity: isPinned ? 1 : 0.3 }}>
-            <PushPin sx={{ fontSize: '1rem', transform: isPinned ? 'none' : 'rotate(45deg)' }} />
-          </IconButton>
+        {enableColumnPinning && !isDisplayColumn && column.getCanPin?.() !== false && (
+          <>
+            <IconButton
+              size='small'
+              onClick={openPinMenu}
+              sx={{ p: 0.25, opacity: 0.7, flexShrink: 0 }}
+            >
+              <MoreVert sx={{ fontSize: '1rem' }} />
+            </IconButton>
+
+            <Menu
+              anchorEl={pinMenuAnchor}
+              open={isPinMenuOpen}
+              onClose={closePinMenu}
+              anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+              transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <MenuItem onClick={() => handlePinSelection('left')} selected={isPinned === 'left'}>
+                {isPinned === 'left' ? 'Unpin from left' : 'Pin left'}
+              </MenuItem>
+              <MenuItem onClick={() => handlePinSelection('right')} selected={isPinned === 'right'}>
+                {isPinned === 'right' ? 'Unpin from right' : 'Pin right'}
+              </MenuItem>
+              <MenuItem onClick={() => handlePinSelection(false)} disabled={!isPinned}>
+                Unpin
+              </MenuItem>
+              {enableColumnResizing && (
+                <MenuItem onClick={handleAutoSize}>Auto-size column</MenuItem>
+              )}
+            </Menu>
+          </>
         )}
       </Box>
 
       {showFilters && column.getCanFilter() && (
-        <Box onClick={(e) => e.stopPropagation()} sx={{ width: '100%' }}>
-          <ColumnFilter 
-            column={column} 
-            filterOptions={(header.getContext().table.options.meta as ADTMeta<T>)?.filterOptions} 
-          />
+        <Box
+          onClick={(event) => event.stopPropagation()}
+          sx={{
+            width: '100%',
+            minWidth: 0,
+          }}
+        >
+          <ColumnFilter column={column} filterOptions={(header.getContext().table.options.meta as ADTMeta<T>)?.filterOptions} />
         </Box>
       )}
 
       {enableColumnResizing && column.getCanResize() && (
         <ADTResizeHandle
-          onMouseDown={(e) => {
-            e.stopPropagation();
-            header.getResizeHandler()(e);
+          onPointerDown={handleResizeStart}
+          onTouchStart={handleResizeStart}
+          onClick={(e) => {
+            if (e.detail === 2) {
+              e.stopPropagation();
+              e.preventDefault();
+              handleAutoSize();
+            }
           }}
-          onTouchStart={(e) => {
+          onDoubleClick={(e) => {
             e.stopPropagation();
-            header.getResizeHandler()(e);
-          }}
-          onDoubleClick={() => {
-            import('../utils/autoSizeColumn').then(({ autoSizeColumn }) => {
-              autoSizeColumn(header.getContext().table as any, column.id);
-            });
+            e.preventDefault();
+            handleAutoSize();
           }}
           isResizing={column.getIsResizing()}
         />
@@ -130,13 +254,4 @@ function AdvancedDataTableHeaderCellInner<T extends object>({
   );
 }
 
-export const AdvancedDataTableHeaderCell = memo(AdvancedDataTableHeaderCellInner, (prev, next) => {
-  return (
-    prev.header.getSize() === next.header.getSize() &&
-    prev.header.column.getIsSorted() === next.header.column.getIsSorted() &&
-    prev.header.column.getIsPinned() === next.header.column.getIsPinned() &&
-    prev.showFilters === next.showFilters &&
-    prev.columnSizing === next.columnSizing &&
-    prev.style?.transform === next.style?.transform
-  );
-}) as typeof AdvancedDataTableHeaderCellInner;
+export const AdvancedDataTableHeaderCell = AdvancedDataTableHeaderCellInner;

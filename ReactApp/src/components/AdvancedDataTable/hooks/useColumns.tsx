@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { Box, Checkbox, IconButton } from '@mui/material';
 import { KeyboardArrowRight, KeyboardArrowDown, Edit, Save, Cancel } from '@mui/icons-material';
 import type { Row, Table } from '@tanstack/react-table';
@@ -24,7 +24,7 @@ export function useColumns<T extends object>({
   enableRowNumbers,
   enableExpanding,
   renderDetailPanel,
-  actionMode,
+  actionMode = 'inline',
   renderRowActions,
   renderRowActionMenuItems,
   enableEditing,
@@ -32,37 +32,92 @@ export function useColumns<T extends object>({
   displayColumnDefOptions,
 }: UseColumnsProps<T>) {
   return useMemo(() => {
-    const displayCols: ADT_ColumnDef<T>[] = [];
+    const leadingDisplayCols: ADT_ColumnDef<T>[] = [];
+    let actionColumn: ADT_ColumnDef<T> | null = null;
 
     if (enableRowSelection) {
       const opts = displayColumnDefOptions?.['mrt-row-select'] || {};
-      displayCols.push({
+
+      leadingDisplayCols.push({
         id: '__select__',
         header: ({ table }) => (
           <Checkbox
             size='small'
             indeterminate={table.getIsSomeRowsSelected() && !table.getIsAllRowsSelected()}
             checked={table.getIsAllRowsSelected()}
+            onClick={(event) => {
+              event.stopPropagation();
+            }}
             onChange={table.getToggleAllRowsSelectedHandler()}
           />
         ),
         cell: ({ row }) => (
-          <Checkbox 
-            size='small' 
-            checked={row.getIsSelected()} 
-            disabled={!row.getCanSelect()} 
+          <Checkbox
+            size='small'
+            checked={row.getIsSelected()}
+            disabled={!row.getCanSelect()}
+            onClick={(event) => {
+              event.stopPropagation();
+            }}
             onChange={(e) => {
-              // Pass the native event which has shiftKey property
               row.getToggleSelectedHandler()(e.nativeEvent);
-            }} 
+            }}
           />
         ),
         size: opts.size ?? 50,
         minSize: opts.minSize ?? 40,
+        maxSize: opts.maxSize ?? 70,
         enableSorting: false,
         enableColumnFilter: false,
+        enableGlobalFilter: false,
         enableHiding: false,
         enableResizing: false,
+        enableGrouping: false,
+        grow: false,
+
+        ...opts,
+      });
+    }
+
+    if (enableExpanding || renderDetailPanel) {
+      const opts = displayColumnDefOptions?.['mrt-row-expand'] || {};
+
+      leadingDisplayCols.push({
+        id: '__expand__',
+        header: '',
+        cell: ({ row }) => {
+          if (row.getIsGrouped()) {
+            return null;
+          }
+
+          const canExpand = row.getCanExpand();
+
+          return (
+            <IconButton
+              size='small'
+              disabled={!canExpand}
+              aria-label={row.getIsExpanded() ? 'Collapse row' : 'Expand row'}
+              onClick={(event) => {
+                event.stopPropagation();
+
+                if (canExpand) {
+                  row.toggleExpanded();
+                }
+              }}
+            >
+              {row.getIsExpanded() ? <KeyboardArrowDown fontSize='small' /> : <KeyboardArrowRight fontSize='small' />}
+            </IconButton>
+          );
+        },
+        size: opts.size ?? 50,
+        minSize: opts.minSize ?? 40,
+        maxSize: opts.maxSize ?? 70,
+        enableSorting: false,
+        enableColumnFilter: false,
+        enableGlobalFilter: false,
+        enableHiding: false,
+        enableResizing: false,
+        enableGrouping: false,
         grow: false,
         ...opts,
       });
@@ -70,51 +125,38 @@ export function useColumns<T extends object>({
 
     if (enableRowNumbers) {
       const opts = displayColumnDefOptions?.['mrt-row-numbers'] || {};
-      displayCols.push({
+
+      leadingDisplayCols.push({
         id: '__row_numbers__',
         header: '#',
         cell: ({ row, table }) => {
-          // Find the row's index in the fully filtered and sorted data model
           const sortedRows = table.getSortedRowModel().flatRows;
-          const index = sortedRows.findIndex(r => r.id === row.id);
+          const index = sortedRows.findIndex((currentRow) => currentRow.id === row.id);
           return index !== -1 ? index + 1 : row.index + 1;
         },
-        size: opts.size ?? 50,
-        minSize: opts.minSize ?? 40,
+        size: opts.size ?? 60,
+        minSize: opts.minSize ?? 50,
+        maxSize: opts.maxSize ?? 80,
         enableSorting: false,
         enableColumnFilter: false,
+        enableGlobalFilter: false,
+        enableHiding: false,
+        enableResizing: false,
+        enableGrouping: false,
         grow: false,
         ...opts,
       });
     }
 
-    if (enableExpanding || renderDetailPanel) {
-      const opts = displayColumnDefOptions?.['mrt-row-expand'] || {};
-      displayCols.push({
-        id: '__expand__',
-        header: '',
-        cell: ({ row }) => (
-          <IconButton size='small' onClick={row.getToggleExpandedHandler()}>
-            {row.getIsExpanded() ? <KeyboardArrowDown /> : <KeyboardArrowRight />}
-          </IconButton>
-        ),
-        size: opts.size ?? 50,
-        minSize: opts.minSize ?? 40,
-        enableSorting: false,
-        enableColumnFilter: false,
-        grow: false,
-        ...opts,
-      });
-    }
-
-    const dataCols = columns.map((col) => ({
+    const dataCols: ADT_ColumnDef<T>[] = columns.map((col) => ({
       ...col,
-      filterFn: col.filterVariant ? filterFnByVariant[col.filterVariant] : filterFnByVariant.text,
+      filterFn: col.filterFn ?? (col.filterVariant ? filterFnByVariant[col.filterVariant] : filterFnByVariant.text),
+      enableGrouping: col.enableGrouping ?? true,
     }));
 
     if (actionMode !== 'none') {
       const opts = displayColumnDefOptions?.['mrt-row-actions'] || {};
-      displayCols.push({
+      actionColumn = {
         id: '__actions__',
         header: 'Actions',
         cell: ({ row, table }) => {
@@ -123,23 +165,54 @@ export function useColumns<T extends object>({
 
           if (isEditing) {
             return (
-              <Box sx={{ display: 'flex', gap: 0.5 }}>
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 0.5,
+                  width: '100%',
+                }}
+                onClick={(event) => {
+                  event.stopPropagation();
+                }}
+              >
                 <IconButton
                   size='small'
                   color='primary'
-                  onClick={async () => {
-                    const errs = await meta.validateRow?.(meta.editValues || {}, row.original);
-                    if (errs && Object.keys(errs).length > 0) {
-                      meta.setRowErrors?.(errs);
+                  aria-label='Save row'
+                  onClick={async (event) => {
+                    event.stopPropagation();
+
+                    const errors = await meta.validateRow?.(meta.editValues || {}, row.original);
+
+                    if (errors && Object.keys(errors).length > 0) {
+                      meta.setRowErrors?.(errors);
                       return;
                     }
+
                     await meta.onRowSave?.(row.original, meta.editValues || {});
+
                     meta.setEditingRowId?.(null);
+                    meta.setEditValues?.({});
+                    meta.setRowErrors?.({});
                   }}
                 >
                   <Save fontSize='small' />
                 </IconButton>
-                <IconButton size='small' color='error' onClick={() => meta.setEditingRowId?.(null)}>
+
+                <IconButton
+                  size='small'
+                  color='error'
+                  aria-label='Cancel editing'
+                  onClick={(event) => {
+                    event.stopPropagation();
+
+                    meta.setEditingRowId?.(null);
+                    meta.setEditValues?.({});
+                    meta.setRowErrors?.({});
+                  }}
+                >
                   <Cancel fontSize='small' />
                 </IconButton>
               </Box>
@@ -147,18 +220,34 @@ export function useColumns<T extends object>({
           }
 
           return (
-            <Box sx={{ display: 'flex', gap: 0.5 }}>
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 0.5,
+                width: '100%',
+              }}
+              onClick={(event) => {
+                event.stopPropagation();
+              }}
+            >
               {enableEditing && (
                 <IconButton
                   size='small'
-                  onClick={() => {
+                  aria-label='Edit row'
+                  onClick={(event) => {
+                    event.stopPropagation();
+
                     meta.setEditingRowId?.(row.id);
                     meta.setEditValues?.({ ...row.original });
+                    meta.setRowErrors?.({});
                   }}
                 >
                   <Edit fontSize='small' />
                 </IconButton>
               )}
+
               {actionMode === 'inline' ? (
                 renderRowActions?.({ row, table })
               ) : (
@@ -167,25 +256,31 @@ export function useColumns<T extends object>({
             </Box>
           );
         },
-        size: opts.size ?? 100,
+        size: opts.size ?? 110,
+        minSize: opts.minSize ?? 90,
+        maxSize: opts.maxSize ?? 180,
         enableSorting: false,
         enableColumnFilter: false,
+        enableGlobalFilter: false,
+        enableHiding: false,
+        enableResizing: false,
+        enableGrouping: false,
         grow: false,
         ...opts,
-      });
+      };
     }
 
-    return [...displayCols, ...dataCols];
+    return actionColumn ? [...leadingDisplayCols, ...dataCols, actionColumn] : [...leadingDisplayCols, ...dataCols];
   }, [
     columns,
     enableRowNumbers,
     enableExpanding,
     renderDetailPanel,
-    enableRowSelection,
     actionMode,
     renderRowActions,
     renderRowActionMenuItems,
     enableEditing,
+    enableRowSelection,
     displayColumnDefOptions,
   ]);
 }

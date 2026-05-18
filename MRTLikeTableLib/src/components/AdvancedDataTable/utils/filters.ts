@@ -36,6 +36,15 @@ export const filterFnByVariant: Record<string, FilterFn<any>> = {
     const cell = normalize(row.getValue(columnId));
     return value.some((v) => cell === normalize(v));
   },
+  
+  checkbox: (row, columnId, value) => {
+    // value = 'Y' or undefined
+    if (!value) return true;
+
+    const cellValue = row.getValue(columnId);
+
+    return String(cellValue) === String(value);
+  },
 
   range: (row, columnId, value) => {
     if (!Array.isArray(value)) return true;

@@ -1,91 +1,274 @@
-import React, { memo } from 'react';
-import { Box } from '@mui/material';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import type { Row, Table } from '@tanstack/react-table';
+import { Box, Collapse } from '@mui/material';
+import type { VirtualItem, Virtualizer } from '@tanstack/react-virtual';
+import { ADTRowWrapper } from './AdvancedDataTable.styles';
 import { AdvancedDataTableCell } from './AdvancedDataTableCell';
-import { ROW_HEIGHTS } from '../utils/constants';
+import type { ADTMeta } from '../types/types';
 
-/* =========================================================
-   Row Props
-========================================================= */
-
-interface AdvancedDataTableRowProps {
-  row: any;
-  density: string;
-  isSelected: boolean;
-  isExpanded: boolean;
-  enableClickToCopy?: boolean;
-  editingRowId?: string | null;
-  editValues?: Record<string, any>;
-  onEditChange?: (columnId: string, value: any) => void;
-  style?: React.CSSProperties;
-  columnSizing?: Record<string, number>;
-  renderDetailPanel?: (props: { row: any }) => React.ReactNode;
-  virtualIndex: number;
-  rowSelection?: Record<string, boolean>;
+interface Props<T extends object> {
+  row: Row<T>;
+  table: Table<T>;
+  virtualRow: VirtualItem;
+  rowVirtualizer: Virtualizer<HTMLDivElement, Element>;
+  columnVirtualizer: Virtualizer<HTMLDivElement, Element>;
+  columnSizing: Record<string, number>;
+  renderDetailPanel?: (props: { row: Row<T>; table: Table<T> }) => React.ReactNode;
+  style: React.CSSProperties;
 }
 
-/* =========================================================
-   Custom Equality — only re-renders when row-relevant data changes.
-   Prevents cascading re-renders from unrelated state changes
-   (e.g., export menu open, visibility menu, global filter typing).
- ========================================================= */
+function AdvancedDataTableRowInner<T extends object>({
+  row,
+  table,
+  virtualRow,
+  rowVirtualizer,
+  columnVirtualizer,
+  columnSizing,
+  renderDetailPanel,
+  style,
+}: Props<T>) {
+  const rowRef = useRef<HTMLDivElement | null>(null);
+  const resizeObserverRef = useRef<ResizeObserver | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
 
-function rowAreEqual(prev: AdvancedDataTableRowProps, next: AdvancedDataTableRowProps): boolean {
-  return (
-    prev.row.original === next.row.original &&
-    prev.density === next.density &&
-    prev.isSelected === next.isSelected &&
-    prev.isExpanded === next.isExpanded &&
-    prev.editingRowId === next.editingRowId &&
-    (prev.editingRowId === prev.row.id ? prev.editValues === next.editValues : true) &&
-    prev.virtualIndex === next.virtualIndex &&
-    prev.columnSizing === next.columnSizing
+  const isSelected = row.getIsSelected();
+  const isExpanded = row.getIsExpanded();
+  const isGroupedRow = row.getIsGrouped();
+
+  const meta = table.options.meta as ADTMeta<T>;
+  const isEditing = meta?.editingRowId === row.id;
+
+  const columnSizingKey = useMemo(() => JSON.stringify(columnSizing || {}), [columnSizing]);
+
+  const allCells = row.getVisibleCells();
+
+  const leftPinnedCells = allCells.filter((cell) => cell.column.getIsPinned() === 'left');
+  const rightPinnedCells = allCells.filter((cell) => cell.column.getIsPinned() === 'right');
+  const unpinnedCells = allCells.filter((cell) => !cell.column.getIsPinned());
+
+  const virtualColumns = columnVirtualizer.getVirtualItems();
+  const totalUnpinnedWidth = columnVirtualizer.getTotalSize();
+
+  const beforeWidth = virtualColumns[0]?.start ?? 0;
+  const afterWidth = Math.max(0, totalUnpinnedWidth - (virtualColumns[virtualColumns.length - 1]?.end ?? 0));
+
+  const totalWidth =
+    leftPinnedCells.reduce((acc, c) => acc + c.column.getSize(), 0) +
+    totalUnpinnedWidth +
+    rightPinnedCells.reduce((acc, c) => acc + c.column.getSize(), 0);
+
+  const shouldRenderDetailPanel = Boolean(renderDetailPanel && !isGroupedRow);
+
+  const measureRow = useCallback(() => {
+    if (!rowRef.current) return;
+
+    if (animationFrameRef.current) {
+      window.cancelAnimationFrame(animationFrameRef.current);
+    }
+
+    animationFrameRef.current = window.requestAnimationFrame(() => {
+      if (rowRef.current) {
+        rowVirtualizer.measureElement(rowRef.current);
+      }
+    });
+  }, [rowVirtualizer]);
+
+  const measureDuringAnimation = useCallback(() => {
+    const duration = 350;
+    const startTime = performance.now();
+
+    const tick = () => {
+      if (rowRef.current) {
+        rowVirtualizer.measureElement(rowRef.current);
+      }
+
+      if (performance.now() - startTime < duration) {
+        window.requestAnimationFrame(tick);
+      }
+    };
+
+    window.requestAnimationFrame(tick);
+  }, [rowVirtualizer]);
+
+  const setMeasuredRowRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      if (resizeObserverRef.current) {
+        resizeObserverRef.current.disconnect();
+        resizeObserverRef.current = null;
+      }
+
+      rowRef.current = node;
+
+      if (!node) return;
+
+      rowVirtualizer.measureElement(node);
+
+      resizeObserverRef.current = new ResizeObserver(() => {
+        measureRow();
+      });
+
+      resizeObserverRef.current.observe(node);
+    },
+    [measureRow, rowVirtualizer]
   );
-}
 
-/* =========================================================
-   Memoized Table Row
- ========================================================= */
+  const handleKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        const handler = row.getToggleSelectedHandler?.();
 
-export const AdvancedDataTableRow = memo(
-  React.forwardRef<HTMLDivElement, AdvancedDataTableRowProps>(function AdvancedDataTableRow(
-    { row, density, isSelected, isExpanded, enableClickToCopy, editingRowId, editValues, style, columnSizing, renderDetailPanel, virtualIndex },
-    ref
-  ) {
-    const isEditing = editingRowId === row.id;
+        if (handler) {
+          handler(event.nativeEvent);
+          event.preventDefault();
+        }
+      }
+    },
+    [row]
+  );
 
-    return (
+  useEffect(() => {
+    measureRow();
+
+    const firstFrame = window.requestAnimationFrame(() => {
+      measureRow();
+
+      const secondFrame = window.requestAnimationFrame(() => {
+        measureRow();
+        rowVirtualizer.measure();
+      });
+
+      return () => window.cancelAnimationFrame(secondFrame);
+    });
+
+    return () => window.cancelAnimationFrame(firstFrame);
+  }, [columnSizingKey, measureRow, rowVirtualizer]);
+
+  useEffect(() => {
+    measureDuringAnimation();
+  }, [isExpanded, measureDuringAnimation]);
+
+  useEffect(() => {
+    return () => {
+      if (resizeObserverRef.current) {
+        resizeObserverRef.current.disconnect();
+      }
+
+      if (animationFrameRef.current) {
+        window.cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
+  }, []);
+
+  return (
+    <ADTRowWrapper
+      role='row'
+      aria-rowindex={row.index + 1}
+      data-index={virtualRow.index}
+      ref={setMeasuredRowRef}
+      isSelected={isSelected}
+      isEditing={isEditing}
+      isGrouped={isGroupedRow}
+      tabIndex={0}
+      onKeyDown={handleKeyDown}
+      style={{
+        ...style,
+        width: totalWidth,
+        minWidth: '100%',
+        flexDirection: 'column',
+        alignItems: 'stretch',
+      }}
+    >
       <Box
-        ref={ref}
-        data-index={virtualIndex}
-        role='row'
-        style={style}
-        className={`advanced-data-table__row ${isEditing ? 'advanced-data-table__row--editing' : ''} ${row.getIsGrouped() ? 'advanced-data-table__row--grouped' : ''}`}
         sx={{
-          height: isExpanded ? 'auto' : ROW_HEIGHTS[density],
-          minHeight: ROW_HEIGHTS[density],
-          maxHeight: isExpanded ? 'none' : ROW_HEIGHTS[density],
+          display: 'flex',
+          width: totalWidth,
+          minWidth: '100%',
+          minHeight: 'var(--adt-row-height)',
+          boxSizing: 'border-box',
+          alignItems: 'stretch',
         }}
       >
-        <Box className='advanced-data-table__row-cells'>
-          {row.getVisibleCells().map((cell: any) => (
+        {leftPinnedCells.map((cell) => (
+          <AdvancedDataTableCell
+            key={cell.id}
+            cell={cell}
+            style={{
+              width: cell.column.getSize(),
+              minWidth: cell.column.getSize(),
+              flex: '0 0 auto',
+              left: cell.column.getStart('left'),
+            }}
+          />
+        ))}
+
+        {beforeWidth > 0 && <Box sx={{ width: beforeWidth, flexShrink: 0 }} />}
+
+        {virtualColumns.map((virtualColumn: VirtualItem) => {
+          const cell = unpinnedCells[virtualColumn.index];
+
+          if (!cell) return null;
+
+          return (
             <AdvancedDataTableCell
               key={cell.id}
               cell={cell}
-              density={density}
-              enableClickToCopy={enableClickToCopy}
-              isEditing={isEditing}
-              isSelected={isSelected}
-              isExpanded={isExpanded}
-              editValue={isEditing ? editValues?.[cell.column.id] : undefined}
-              columnSizing={columnSizing}
+              style={{
+                width: cell.column.getSize(),
+                minWidth: cell.column.getSize(),
+                flex: '0 0 auto',
+              }}
             />
-          ))}
-        </Box>
+          );
+        })}
 
-        {/* Detail Panel */}
-        {renderDetailPanel && isExpanded && <Box className='advanced-data-table__detail-panel'>{renderDetailPanel({ row: row.original })}</Box>}
+        {afterWidth > 0 && <Box sx={{ width: afterWidth, flexShrink: 0 }} />}
+
+        {rightPinnedCells.map((cell) => (
+          <AdvancedDataTableCell
+            key={cell.id}
+            cell={cell}
+            style={{
+              width: cell.column.getSize(),
+              minWidth: cell.column.getSize(),
+              flex: '0 0 auto',
+              right: cell.column.getAfter('right'),
+            }}
+          />
+        ))}
       </Box>
-    );
-  }),
-  rowAreEqual
-);
+
+      {shouldRenderDetailPanel && (
+        <Collapse
+          in={isExpanded}
+          timeout={300}
+          unmountOnExit
+          onEnter={measureDuringAnimation}
+          onEntering={measureDuringAnimation}
+          onEntered={measureRow}
+          onExit={measureDuringAnimation}
+          onExiting={measureDuringAnimation}
+          onExited={measureRow}
+        >
+          <Box
+            role='region'
+            aria-label={`Expanded details for row ${row.index + 1}`}
+            sx={{
+              width: totalWidth,
+              minWidth: '100%',
+              boxSizing: 'border-box',
+              px: 4,
+              py: 2.5,
+              borderTop: '1px solid var(--adt-border-color)',
+              borderBottom: '1px solid var(--adt-border-color)',
+              backgroundColor: 'background.default',
+            }}
+          >
+            {renderDetailPanel?.({ row, table })}
+          </Box>
+        </Collapse>
+      )}
+    </ADTRowWrapper>
+  );
+}
+
+export const AdvancedDataTableRow = AdvancedDataTableRowInner;
