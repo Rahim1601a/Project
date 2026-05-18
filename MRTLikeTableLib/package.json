@@ -58,11 +58,10 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@tanstack/react-virtual": "^3.0.0",
     "clsx": "^2.1.1",
-    "react-flatpickr": "^3.10.13",
-    "react-select": "^5.8.0",
-    "tailwind-merge": "^2.3.0",
     "jspdf": "^2.5.1",
     "jspdf-autotable": "^3.8.2",
-    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.2/xlsx-0.20.2.tgz"
+    "react-flatpickr": "^3.10.13",
+    "react-select": "^5.8.0",
+    "tailwind-merge": "^2.3.0"
   }
 }

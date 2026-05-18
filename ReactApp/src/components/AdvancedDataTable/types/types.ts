@@ -77,6 +77,12 @@ export interface AdvancedDataTableProps<T extends object> {
   enableRowPinning?: boolean;
   enablePagination?: boolean;
 
+  state?: Partial<ADTTableState>;
+  onPaginationChange?: (updater: any) => void;
+  onSortingChange?: (updater: any) => void;
+  onColumnFiltersChange?: (updater: any) => void;
+  onGlobalFilterChange?: (updater: any) => void;
+
   layoutMode?: 'grid' | 'grid-no-grow' | 'semantic';
   initialDensity?: ADTDensity;
   columnResizeMode?: 'onChange' | 'onEnd';

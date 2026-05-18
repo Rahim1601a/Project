@@ -156,28 +156,40 @@ export function useAdvancedDataTable<T extends object>(props: AdvancedDataTableP
     data,
     columns,
     state: {
-      pagination: state.pagination,
-      sorting: state.sorting,
-      columnFilters: state.columnFilters,
-      globalFilter: state.globalFilter,
-      columnVisibility: state.columnVisibility,
-      columnOrder: state.columnOrder,
-      columnPinning: state.columnPinning,
-      columnSizing: state.columnSizing,
-      grouping: state.grouping,
-      expanded: state.expanded,
-      rowSelection: state.rowSelection,
+      pagination: props.state?.pagination ?? state.pagination,
+      sorting: props.state?.sorting ?? state.sorting,
+      columnFilters: props.state?.columnFilters ?? state.columnFilters,
+      globalFilter: props.state?.globalFilter ?? state.globalFilter,
+      columnVisibility: props.state?.columnVisibility ?? state.columnVisibility,
+      columnOrder: props.state?.columnOrder ?? state.columnOrder,
+      columnPinning: props.state?.columnPinning ?? state.columnPinning,
+      columnSizing: props.state?.columnSizing ?? state.columnSizing,
+      grouping: props.state?.grouping ?? state.grouping,
+      expanded: props.state?.expanded ?? state.expanded,
+      rowSelection: props.state?.rowSelection ?? state.rowSelection,
     },
     onPaginationChange: (updater) => {
+      if (props.onPaginationChange) {
+        props.onPaginationChange(updater);
+      }
       dispatch({ type: 'SET_PAGINATION', payload: updater as any });
     },
     onSortingChange: (updater) => {
+      if (props.onSortingChange) {
+        props.onSortingChange(updater);
+      }
       dispatch({ type: 'SET_SORTING', payload: updater as any });
     },
     onColumnFiltersChange: (updater) => {
+      if (props.onColumnFiltersChange) {
+        props.onColumnFiltersChange(updater);
+      }
       dispatch({ type: 'SET_COLUMN_FILTERS', payload: updater as any });
     },
     onGlobalFilterChange: (updater) => {
+      if (props.onGlobalFilterChange) {
+        props.onGlobalFilterChange(updater);
+      }
       dispatch({ type: 'SET_GLOBAL_FILTER', payload: updater as any });
     },
     onColumnVisibilityChange: (updater) => {

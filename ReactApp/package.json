@@ -28,7 +28,6 @@
     "flatpickr": "^4.6.13",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.7",
-    "material-react-table": "^3.2.1",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "react-flatpickr": "^4.0.11",
@@ -42,7 +41,6 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.50.0",
-    "@types/lodash": "^4.17.24",
     "@types/node": "^24.12.2",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
