@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import type { Table, Row } from '@tanstack/react-table';
-import { Box, CircularProgress, Typography } from '@mui/material';
+import { CircularProgress, Typography, Box } from '@mui/material';
 import { ADTBody, ADTLoadingOverlay } from './AdvancedDataTable.styles';
 import { AdvancedDataTableRow } from './AdvancedDataTableRow';
 import { useVirtualRows } from '../hooks/useVirtualRows';
@@ -20,7 +20,15 @@ interface Props<T extends object> {
   renderDetailPanel?: (props: { row: Row<T>; table: Table<T> }) => React.ReactNode;
 }
 
-function AdvancedDataTableBodyInner<T extends object>({ table, tableContainerRef, loading, density, columnSizing, onScrollEnd, renderDetailPanel }: Props<T>) {
+function AdvancedDataTableBodyInner<T extends object>({
+  table,
+  tableContainerRef,
+  loading,
+  density,
+  columnSizing,
+  onScrollEnd,
+  renderDetailPanel,
+}: Props<T>) {
   const rows = table.getRowModel().rows;
 
   const rowVirtualizer = useVirtualRows(tableContainerRef, rows.length, density, columnSizing);
@@ -47,43 +55,49 @@ function AdvancedDataTableBodyInner<T extends object>({ table, tableContainerRef
     return () => container.removeEventListener('scroll', handleScroll);
   }, [onScrollEnd, tableContainerRef, loading]);
 
-  if (!loading && rows.length === 0) {
+  function renderEmptyState() {
     return (
-      <Box sx={{ p: 8, textAlign: 'center', width: '100%' }}>
-        <Typography variant='h6' color='text.secondary'>No records found</Typography>
+      <Box style={{ display: 'flex', width: '100%', justifyContent: 'center', padding: '32px' }}>
+        <Typography variant='h6' color='text.secondary'>
+          No records found
+        </Typography>
       </Box>
     );
   }
 
   const totalWidth = Math.max(table.getTotalSize(), 0);
+  const hasContent = !loading && rows.length > 0;
 
   return (
     <ADTBody
       role='rowgroup'
-      aria-rowcount={rows.length}
       sx={{
         height: `${rowVirtualizer.getTotalSize()}px`,
         width: totalWidth ? `${totalWidth}px` : '100%',
         minWidth: '100%',
       }}
     >
-      {virtualRows.map((virtualRow) => {
-        const row = rows[virtualRow.index];
-        if (!row) return null;
-        return (
-          <AdvancedDataTableRow
-            key={row.id}
-            row={row}
-            table={table}
-            virtualRow={virtualRow}
-            rowVirtualizer={rowVirtualizer}
-            columnVirtualizer={columnVirtualizer}
-            columnSizing={columnSizing}
-            renderDetailPanel={renderDetailPanel}
-            style={getVirtualRowStyles(virtualRow)}
-          />
-        );
-      })}
+      {hasContent
+        ? virtualRows.map((virtualRow) => {
+            const row = rows[virtualRow.index];
+            if (!row) return null;
+            return (
+              <AdvancedDataTableRow
+                key={row.id}
+                row={row}
+                table={table}
+                virtualRow={virtualRow}
+                rowVirtualizer={rowVirtualizer}
+                columnVirtualizer={columnVirtualizer}
+                columnSizing={columnSizing}
+                renderDetailPanel={renderDetailPanel}
+                style={getVirtualRowStyles(virtualRow)}
+              />
+            );
+          })
+        : !loading
+          ? renderEmptyState()
+          : null}
 
       {loading && (
         <ADTLoadingOverlay>

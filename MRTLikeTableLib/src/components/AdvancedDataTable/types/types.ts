@@ -13,6 +13,11 @@ import type {
   GroupingState,
   ExpandedState,
 } from '@tanstack/react-table';
+export interface ThemeColorConfig {
+  surface?: string;
+  border?: string;
+  surfaceSoft?: string;
+}
 
 export type ADTDensity = 'compact' | 'comfortable' | 'spacious';
 
@@ -77,6 +82,12 @@ export interface AdvancedDataTableProps<T extends object> {
   enableRowPinning?: boolean;
   enablePagination?: boolean;
 
+  state?: Partial<ADTTableState>;
+  onPaginationChange?: (updater: any) => void;
+  onSortingChange?: (updater: any) => void;
+  onColumnFiltersChange?: (updater: any) => void;
+  onGlobalFilterChange?: (updater: any) => void;
+
   layoutMode?: 'grid' | 'grid-no-grow' | 'semantic';
   initialDensity?: ADTDensity;
   columnResizeMode?: 'onChange' | 'onEnd';
@@ -103,6 +114,7 @@ export interface AdvancedDataTableProps<T extends object> {
   isStorage?: boolean;
   storageKey?: string;
   title?: string;
+  themeConfig?: ThemeColorConfig;
 }
 
 export type ADTExportParams = {

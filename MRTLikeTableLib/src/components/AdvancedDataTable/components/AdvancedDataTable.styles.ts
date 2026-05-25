@@ -1,4 +1,5 @@
 import { Box, Paper, styled, keyframes } from '@mui/material';
+import type { ThemeColorConfig } from '../types/types';
 
 const adtFadeIn = keyframes`
   from {
@@ -23,8 +24,12 @@ const adtOverlayFadeIn = keyframes`
 `;
 
 export const ADTRoot = styled(Paper, {
-  shouldForwardProp: (prop) => prop !== 'isFullScreen' && prop !== 'layoutMode',
-})<{ isFullScreen?: boolean; layoutMode?: 'grid' | 'grid-no-grow' | 'semantic' }>(({ isFullScreen, theme }) => ({
+  shouldForwardProp: (prop) => prop !== 'isFullScreen' && prop !== 'layoutMode' && prop !== 'themeConfig',
+})<{
+  isFullScreen?: boolean;
+  layoutMode?: 'grid' | 'grid-no-grow' | 'semantic';
+  themeConfig?: ThemeColorConfig;
+}>(({ isFullScreen, themeConfig, theme }) => ({
   width: '100%',
   display: 'flex',
   flexDirection: 'column',
@@ -36,11 +41,10 @@ export const ADTRoot = styled(Paper, {
   height: isFullScreen ? '100vh' : 'auto',
   zIndex: isFullScreen ? 1300 : 'auto',
   boxShadow: isFullScreen ? 'none' : theme.shadows[6],
-  backgroundColor: theme.palette.background.paper,
-  transition:
-    'border-radius 0.4s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.4s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-  '--adt-border-color': theme.palette.divider,
-  '--adt-header-bg': theme.palette.mode === 'dark' ? theme.palette.background.default : theme.palette.grey[50],
+  backgroundColor: themeConfig?.surface ?? theme.palette.background.paper,
+  transition: 'border-radius 0.4s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.4s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+  '--adt-border-color': themeConfig?.border ?? theme.palette.divider,
+  '--adt-header-bg': themeConfig?.surfaceSoft ?? (theme.palette.mode === 'dark' ? theme.palette.background.default : theme.palette.grey[50]),
 }));
 
 export const ADTToolbar = styled(Box)(({ theme }) => ({
@@ -104,8 +108,7 @@ export const ADTRowWrapper = styled(Box, {
   display: 'flex',
   width: '100%',
   boxSizing: 'border-box',
-  transition:
-    'background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-left-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease, transform 0.2s ease',
+  transition: 'background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-left-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease, transform 0.2s ease',
   backgroundColor: isSelected ? theme.palette.action.selected : theme.palette.background.paper,
   minHeight: 'var(--adt-row-height)',
   overflow: 'visible',
@@ -114,10 +117,9 @@ export const ADTRowWrapper = styled(Box, {
   '&:hover': {
     backgroundColor: theme.palette.action.hover,
     borderLeftColor: theme.palette.primary.main,
-    boxShadow:
-      theme.palette.mode === 'dark'
-        ? '0 3px 10px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05)'
-        : '0 3px 10px rgba(0, 0, 0, 0.04), inset 0 1px 0 rgba(0, 0, 0, 0.02)',
+    boxShadow: theme.palette.mode === 'dark'
+      ? '0 3px 10px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05)'
+      : '0 3px 10px rgba(0, 0, 0, 0.04), inset 0 1px 0 rgba(0, 0, 0, 0.02)',
     zIndex: 2,
     transform: 'translateY(-1px)',
   },

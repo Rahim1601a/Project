@@ -127,7 +127,7 @@ function AdvancedDataTableRowInner<T extends object>({
 
       resizeObserverRef.current.observe(node);
     },
-    [measureRow]
+    [measureRow],
   );
 
   const handleKeyDown = useCallback(
@@ -141,7 +141,7 @@ function AdvancedDataTableRowInner<T extends object>({
         }
       }
     },
-    [row]
+    [row],
   );
 
   useEffect(() => {

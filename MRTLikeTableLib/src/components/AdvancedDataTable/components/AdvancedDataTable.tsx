@@ -36,6 +36,7 @@ function AdvancedDataTableInner<T extends object>(props: AdvancedDataTableProps<
     enableColumnFooters,
     renderDetailPanel,
     initialDensity = 'comfortable',
+    themeConfig,
   } = props;
 
   // 1. Base Hooks
@@ -162,8 +163,10 @@ function AdvancedDataTableInner<T extends object>(props: AdvancedDataTableProps<
     return () => window.removeEventListener('adt-copy' as any, handleCopy);
   }, []);
 
+  const totalWidth = Math.max(table.getTotalSize(), 0);
+
   return (
-    <ADTRoot ref={containerRef} isFullScreen={isFullScreen} layoutMode={layoutMode} style={densityStyles}>
+    <ADTRoot ref={containerRef} isFullScreen={isFullScreen} layoutMode={layoutMode} themeConfig={themeConfig} style={densityStyles}>
       <AdvancedDataTableToolbar
         table={table}
         title={title}
@@ -218,7 +221,7 @@ function AdvancedDataTableInner<T extends object>(props: AdvancedDataTableProps<
                 {table.getFooterGroups().map((footerGroup) => (
                   <Box
                     key={footerGroup.id}
-                    sx={{ display: 'flex', width: table.getTotalSize(), minWidth: '100%', borderBottom: '2px solid var(--adt-border-color)' }}
+                    sx={{ display: 'flex', width: totalWidth, minWidth: '100%', borderBottom: '2px solid var(--adt-border-color)' }}
                   >
                     {/* Left Pinned Footers */}
                     {footerGroup.headers
