@@ -13,16 +13,18 @@ export function calculateGrowColumnSizes<T extends object>(
 
   const visibleColumns = table.getVisibleLeafColumns();
   const columnSizing = table.getState().columnSizing;
+  const meta = table.options.meta as any;
+  const manuallyResized = meta?.manuallyResized || {};
 
   let totalFixedWidth = 0;
   const growColumns: Column<T, any>[] = [];
 
   visibleColumns.forEach((column) => {
     const colDef = column.columnDef as any;
-    const isManualResized = !!columnSizing[column.id];
+    const isManualResized = !!manuallyResized[column.id];
 
     if (isManualResized) {
-      totalFixedWidth += columnSizing[column.id];
+      totalFixedWidth += columnSizing[column.id] ?? column.getSize();
     } else if (colDef.grow === false || (layoutMode === 'grid-no-grow' && !colDef.grow)) {
       totalFixedWidth += column.getSize();
     } else {

@@ -8,6 +8,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { ADTHeaderCellWrapper, ADTResizeHandle } from './AdvancedDataTable.styles';
 import type { ADT_ColumnDef, ADTMeta } from '../types/types';
 import { ColumnFilter } from './ColumnFilter';
+import { autoSizeColumn } from '../utils/autoSizeColumn';
 
 interface Props<T extends object> {
   header: Header<T, unknown>;
@@ -73,23 +74,9 @@ function AdvancedDataTableHeaderCellInner<T extends object>({
     closePinMenu();
   };
 
-  const handleAutoSize = async () => {
+  const handleAutoSize = () => {
     closePinMenu();
-
-    const table = header.getContext().table;
-    const rows = table.getRowModel().rows;
-    const headerText = typeof colDef.header === 'string' ? colDef.header : column.id;
-    const headerWidth = headerText.length * 8 + 32;
-
-    const cellMaxWidth = rows.reduce((max: number, row: any) => {
-      const value = row.getValue(column.id);
-      const text = value ? String(value) : '';
-      const width = text.length * 7 + 24;
-      return Math.max(max, width);
-    }, 0);
-
-    const finalWidth = Math.max(120, headerWidth, cellMaxWidth);
-    table.setColumnSizing((prev: any) => ({ ...prev, [column.id]: Math.min(finalWidth, colDef.maxSize ?? 1000) }));
+    autoSizeColumn(header.getContext().table, column.id);
   };
 
   const handleResizeStart = (event: React.PointerEvent | React.MouseEvent | React.TouchEvent) => {
@@ -104,13 +91,27 @@ function AdvancedDataTableHeaderCellInner<T extends object>({
 
   const canGroupColumn = enableColumnGrouping && !isDisplayColumn && column.getCanGroup();
 
+  const cellProps = typeof colDef.muiTableHeadCellProps === 'function'
+    ? colDef.muiTableHeadCellProps({ column, table: header.getContext().table, header })
+    : colDef.muiTableHeadCellProps || {};
+
+  const { style: cellStyle, sx: cellSx, ...otherCellProps } = cellProps;
+
+  const mergedStyle: React.CSSProperties = {
+    ...finalStyle,
+    ...cellStyle,
+  };
+
   return (
     <ADTHeaderCellWrapper
+      data-column-id={column.id}
       aria-sort={column.getIsSorted() === 'desc' ? 'descending' : column.getIsSorted() === 'asc' ? 'ascending' : 'none'}
       ref={setNodeRef}
-      style={finalStyle}
+      style={mergedStyle}
+      sx={cellSx}
       isPinned={!!isPinned}
       grow={colDef.grow}
+      {...otherCellProps}
     >
       <div style={{ display: 'flex', alignItems: 'center', width: '100%', minWidth: 0, marginBottom: showFilters ? '8px' : 0 }}>
         {enableColumnOrdering && !isDisplayColumn && (

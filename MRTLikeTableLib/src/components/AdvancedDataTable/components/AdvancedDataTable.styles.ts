@@ -42,7 +42,8 @@ export const ADTRoot = styled(Paper, {
   zIndex: isFullScreen ? 1300 : 'auto',
   boxShadow: isFullScreen ? 'none' : theme.shadows[6],
   backgroundColor: themeConfig?.surface ?? theme.palette.background.paper,
-  transition: 'border-radius 0.4s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.4s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+  transition:
+    'border-radius 0.4s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.4s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
   '--adt-border-color': themeConfig?.border ?? theme.palette.divider,
   '--adt-header-bg': themeConfig?.surfaceSoft ?? (theme.palette.mode === 'dark' ? theme.palette.background.default : theme.palette.grey[50]),
 }));
@@ -108,7 +109,8 @@ export const ADTRowWrapper = styled(Box, {
   display: 'flex',
   width: '100%',
   boxSizing: 'border-box',
-  transition: 'background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-left-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease, transform 0.2s ease',
+  transition:
+    'background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-left-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease, transform 0.2s ease',
   backgroundColor: isSelected ? theme.palette.action.selected : theme.palette.background.paper,
   minHeight: 'var(--adt-row-height)',
   overflow: 'visible',
@@ -117,9 +119,10 @@ export const ADTRowWrapper = styled(Box, {
   '&:hover': {
     backgroundColor: theme.palette.action.hover,
     borderLeftColor: theme.palette.primary.main,
-    boxShadow: theme.palette.mode === 'dark'
-      ? '0 3px 10px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05)'
-      : '0 3px 10px rgba(0, 0, 0, 0.04), inset 0 1px 0 rgba(0, 0, 0, 0.02)',
+    boxShadow:
+      theme.palette.mode === 'dark'
+        ? '0 3px 10px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05)'
+        : '0 3px 10px rgba(0, 0, 0, 0.04), inset 0 1px 0 rgba(0, 0, 0, 0.02)',
     zIndex: 2,
     transform: 'translateY(-1px)',
   },
@@ -142,7 +145,7 @@ export const ADTCellWrapper = styled(Box, {
   grow?: boolean | number;
   isEditing?: boolean;
   isResizing?: boolean;
-}>(({ theme, isPinned, grow, isEditing, isResizing }) => ({
+}>(({ theme, isPinned, isEditing, isResizing }) => ({
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'flex-start',
@@ -153,7 +156,7 @@ export const ADTCellWrapper = styled(Box, {
   overflow: 'hidden',
   transition: 'background-color 0.25s cubic-bezier(0.4, 0, 0.2, 1), border-right-color 0.2s ease',
   backgroundColor: isEditing ? theme.palette.action.hover : 'inherit',
-  flex: grow ? `${typeof grow === 'number' ? grow : 1} ${typeof grow === 'number' ? grow : 1} 0` : '0 0 auto',
+  flex: '0 0 auto',
   zIndex: isPinned ? 10 : 1,
   position: isPinned ? 'sticky' : 'relative',
   padding: 'var(--adt-cell-padding-y) var(--adt-cell-padding-x)',
@@ -181,7 +184,7 @@ export const ADTCellWrapper = styled(Box, {
 
 export const ADTHeaderCellWrapper = styled(Box, {
   shouldForwardProp: (prop) => prop !== 'isPinned' && prop !== 'grow',
-})<{ isPinned?: boolean; grow?: any }>(({ theme, isPinned, grow }) => ({
+})<{ isPinned?: boolean; grow?: any }>(({ theme, isPinned }) => ({
   position: isPinned ? 'sticky' : 'relative',
   display: 'flex',
   flexDirection: 'column',
@@ -190,7 +193,7 @@ export const ADTHeaderCellWrapper = styled(Box, {
   overflow: 'hidden',
   backgroundColor: 'var(--adt-header-bg)',
   transition: 'background-color 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-  flex: grow ? `${grow} ${grow} auto` : '0 0 auto',
+  flex: '0 0 auto',
   zIndex: isPinned ? 21 : 1,
   padding: 'var(--adt-cell-padding-y) var(--adt-cell-padding-x)',
   fontWeight: 600,

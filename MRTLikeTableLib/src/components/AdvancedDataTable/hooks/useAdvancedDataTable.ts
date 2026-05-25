@@ -1,4 +1,4 @@
-import { useReducer, useMemo, useEffect, useState } from 'react';
+import { useReducer, useMemo, useEffect, useState, useRef } from 'react';
 import {
   getCoreRowModel,
   getFilteredRowModel,
@@ -105,6 +105,7 @@ export function useAdvancedDataTable<T extends object>(props: AdvancedDataTableP
     renderRowActionMenuItems,
     enableRowSelection,
     displayColumnDefOptions,
+    enableClickToCopy,
   } = props;
 
   const [state, dispatch] = useReducer(tableReducer, props, buildInitialTableState);
@@ -130,11 +131,30 @@ export function useAdvancedDataTable<T extends object>(props: AdvancedDataTableP
     enableEditing,
     enableRowSelection,
     displayColumnDefOptions,
+    enableClickToCopy,
   });
 
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<Record<string, any>>({});
   const [rowErrors, setRowErrors] = useState<AdvancedDataTableValidationErrors<T>>({});
+  const [manuallyResized, setManuallyResized] = useState<Record<string, boolean>>({});
+
+  const resizeRafRef = useRef<number | null>(null);
+  const latestSizingUpdaterRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (Object.keys(state.columnSizing).length === 0) {
+      setManuallyResized({});
+    }
+  }, [state.columnSizing]);
+
+  useEffect(() => {
+    return () => {
+      if (resizeRafRef.current) {
+        cancelAnimationFrame(resizeRafRef.current);
+      }
+    };
+  }, []);
 
   const meta = useMemo<ADTMeta<T>>(
     () => ({
@@ -148,8 +168,9 @@ export function useAdvancedDataTable<T extends object>(props: AdvancedDataTableP
       rowErrors,
       setRowErrors,
       filterOptions: props.filterOptions,
+      manuallyResized,
     }),
-    [onRowSave, validateRow, enableEditing, editingRowId, editValues, rowErrors, props.filterOptions]
+    [onRowSave, validateRow, enableEditing, editingRowId, editValues, rowErrors, props.filterOptions, manuallyResized]
   );
 
   const table = useReactTable({
@@ -202,7 +223,26 @@ export function useAdvancedDataTable<T extends object>(props: AdvancedDataTableP
       dispatch({ type: 'SET_COLUMN_PINNING', payload: updater as any });
     },
     onColumnSizingChange: (updater) => {
-      dispatch({ type: 'SET_COLUMN_SIZING', payload: updater as any });
+      latestSizingUpdaterRef.current = updater;
+
+      // Extract which column is resized to register as manuallyResized
+      const currentSizing = table.getState().columnSizing;
+      const nextSizing = typeof updater === 'function' ? updater(currentSizing) : updater;
+      const resizedColId = Object.keys(nextSizing).find((key) => nextSizing[key] !== currentSizing[key]);
+      
+      if (resizedColId) {
+        setManuallyResized((prev) => {
+          if (prev[resizedColId]) return prev;
+          return { ...prev, [resizedColId]: true };
+        });
+      }
+
+      if (resizeRafRef.current === null) {
+        resizeRafRef.current = requestAnimationFrame(() => {
+          dispatch({ type: 'SET_COLUMN_SIZING', payload: latestSizingUpdaterRef.current });
+          resizeRafRef.current = null;
+        });
+      }
     },
     onGroupingChange: (updater) => {
       dispatch({ type: 'SET_GROUPING', payload: updater as any });

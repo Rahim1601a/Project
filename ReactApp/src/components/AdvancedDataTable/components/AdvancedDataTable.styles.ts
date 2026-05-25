@@ -142,7 +142,7 @@ export const ADTCellWrapper = styled(Box, {
   grow?: boolean | number;
   isEditing?: boolean;
   isResizing?: boolean;
-}>(({ theme, isPinned, grow, isEditing, isResizing }) => ({
+}>(({ theme, isPinned, isEditing, isResizing }) => ({
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'flex-start',
@@ -153,7 +153,7 @@ export const ADTCellWrapper = styled(Box, {
   overflow: 'hidden',
   transition: 'background-color 0.25s cubic-bezier(0.4, 0, 0.2, 1), border-right-color 0.2s ease',
   backgroundColor: isEditing ? theme.palette.action.hover : 'inherit',
-  flex: grow ? `${typeof grow === 'number' ? grow : 1} ${typeof grow === 'number' ? grow : 1} 0` : '0 0 auto',
+  flex: '0 0 auto',
   zIndex: isPinned ? 10 : 1,
   position: isPinned ? 'sticky' : 'relative',
   padding: 'var(--adt-cell-padding-y) var(--adt-cell-padding-x)',
@@ -181,7 +181,7 @@ export const ADTCellWrapper = styled(Box, {
 
 export const ADTHeaderCellWrapper = styled(Box, {
   shouldForwardProp: (prop) => prop !== 'isPinned' && prop !== 'grow',
-})<{ isPinned?: boolean; grow?: any }>(({ theme, isPinned, grow }) => ({
+})<{ isPinned?: boolean; grow?: any }>(({ theme, isPinned }) => ({
   position: isPinned ? 'sticky' : 'relative',
   display: 'flex',
   flexDirection: 'column',
@@ -190,7 +190,7 @@ export const ADTHeaderCellWrapper = styled(Box, {
   overflow: 'hidden',
   backgroundColor: 'var(--adt-header-bg)',
   transition: 'background-color 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-  flex: grow ? `${grow} ${grow} auto` : '0 0 auto',
+  flex: '0 0 auto',
   zIndex: isPinned ? 21 : 1,
   padding: 'var(--adt-cell-padding-y) var(--adt-cell-padding-x)',
   fontWeight: 600,

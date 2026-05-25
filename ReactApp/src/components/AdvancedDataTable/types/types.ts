@@ -154,4 +154,5 @@ export type ADTMeta<T extends object> = {
   validateRow?: (values: Record<string, any>, row: T) => AdvancedDataTableValidationErrors<T> | Promise<AdvancedDataTableValidationErrors<T>>;
   enableEditing?: boolean;
   filterOptions?: Record<string, Array<string | { label?: string; value: any }>>;
+  manuallyResized?: Record<string, boolean>;
 };

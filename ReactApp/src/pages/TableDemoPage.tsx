@@ -206,6 +206,22 @@ const TableDemoPage: React.FC = () => {
         enableColumnResizing
         columnResizeMode='onChange'
         onRowSave={handleSaveRow}
+        displayColumnDefOptions={{
+          'mrt-row-actions': {
+            muiTableHeadCellProps: {
+              sx: (theme: any) => ({
+                color: 'primary.main',
+                fontWeight: 'bold',
+                backgroundColor: theme.palette.mode === 'dark' ? '#1e293b' : '#ebf0f5',
+              }),
+            },
+            muiTableBodyCellProps: {
+              sx: (theme: any) => ({
+                backgroundColor: theme.palette.mode === 'dark' ? '#0f172a' : '#f4f6f9',
+              }),
+            },
+          },
+        }}
         onScrollEnd={() => console.log('Scrolled to bottom - fetch more data here!')}
         renderDetailPanel={({ row }) => (
           <Box sx={{ p: 2, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>

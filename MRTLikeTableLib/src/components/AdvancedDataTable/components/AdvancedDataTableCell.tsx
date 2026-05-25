@@ -130,8 +130,26 @@ function AdvancedDataTableCellInner<T extends object>({ cell, style }: Props<T>)
     return renderGroupedCellContent();
   };
 
+  const cellProps = typeof colDef.muiTableBodyCellProps === 'function'
+    ? colDef.muiTableBodyCellProps({ cell, column, row, table: getContext().table })
+    : colDef.muiTableBodyCellProps || {};
+
+  const { style: cellStyle, sx: cellSx, ...otherCellProps } = cellProps;
+
+  const mergedStyle: React.CSSProperties = {
+    ...finalStyle,
+    ...cellStyle,
+  };
+
   return (
-    <ADTCellWrapper style={finalStyle} isPinned={!!isPinnedState} grow={colDef.grow}>
+    <ADTCellWrapper
+      data-column-id={column.id}
+      style={mergedStyle}
+      sx={cellSx}
+      isPinned={!!isPinnedState}
+      grow={colDef.grow}
+      {...otherCellProps}
+    >
       <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', minWidth: 0, overflow: 'hidden' }}>
         <Box
           className='adt-cell-content'

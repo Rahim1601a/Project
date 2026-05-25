@@ -17,6 +17,7 @@ interface UseColumnsProps<T extends object> {
   enableEditing?: boolean;
   enableRowSelection?: boolean;
   displayColumnDefOptions?: Record<string, Partial<ADT_ColumnDef<T>>>;
+  enableClickToCopy?: boolean;
 }
 
 export function useColumns<T extends object>({
@@ -30,6 +31,7 @@ export function useColumns<T extends object>({
   enableEditing,
   enableRowSelection,
   displayColumnDefOptions,
+  enableClickToCopy,
 }: UseColumnsProps<T>) {
   return useMemo(() => {
     const leadingDisplayCols: ADT_ColumnDef<T>[] = [];
@@ -150,6 +152,7 @@ export function useColumns<T extends object>({
 
     const dataCols: ADT_ColumnDef<T>[] = columns.map((col) => ({
       ...col,
+      enableClickToCopy: col.enableClickToCopy ?? enableClickToCopy,
       filterFn: col.filterFn ?? (col.filterVariant ? filterFnByVariant[col.filterVariant] : filterFnByVariant.text),
       enableGrouping: col.enableGrouping ?? true,
     }));
@@ -282,5 +285,6 @@ export function useColumns<T extends object>({
     enableEditing,
     enableRowSelection,
     displayColumnDefOptions,
+    enableClickToCopy,
   ]);
 }

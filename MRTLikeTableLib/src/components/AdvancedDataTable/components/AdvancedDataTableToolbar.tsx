@@ -35,6 +35,7 @@ import {
 import { ADTToolbar } from './AdvancedDataTable.styles';
 import type { ADTDensity, ADTExportParams } from '../types/types';
 import { getAriaLabel } from '../utils/accessibility.utils';
+import { autoSizeAllColumns } from '../utils/autoSizeColumn';
 
 interface Props<T extends object> {
   table: Table<T>;
@@ -157,7 +158,11 @@ function AdvancedDataTableToolbarInner<T extends object>({
         {enableHiding && (
           <Tooltip title='Column visibility & density'>
             <span>
-              <IconButton disabled={isExporting} onClick={(event) => setVisibilityAnchor(event.currentTarget)}>
+              <IconButton
+                aria-label='View Settings'
+                disabled={isExporting}
+                onClick={(event) => setVisibilityAnchor(event.currentTarget)}
+              >
                 <ViewColumn />
               </IconButton>
             </span>
@@ -167,6 +172,7 @@ function AdvancedDataTableToolbarInner<T extends object>({
         <Tooltip title={isExporting ? 'Exporting file...' : 'Export data'}>
           <span>
             <IconButton
+              aria-label='Export Options'
               disabled={isExporting}
               onClick={(e) => setExportAnchor(e.currentTarget)}
               sx={{
@@ -260,10 +266,7 @@ function AdvancedDataTableToolbarInner<T extends object>({
             disabled={isExporting}
             onClick={() => {
               setVisibilityAnchor(null);
-
-              import('../utils/autoSizeColumn').then(({ autoSizeAllColumns }) => {
-                autoSizeAllColumns(table);
-              });
+              autoSizeAllColumns(table);
             }}
           >
             <ListItemIcon>
