@@ -41,7 +41,13 @@ function AdvancedDataTableInner<T extends object>(props: AdvancedDataTableProps<
   // 1. Base Hooks
   const { table, state, dispatch } = useAdvancedDataTable(props);
   const containerRef = useRef<HTMLDivElement>(null);
-  const tableContainerRef = useRef<HTMLDivElement>(null);
+  const [containerMounted, setContainerMounted] = useState(false);
+  void containerMounted;
+  const tableContainerRef = useRef<HTMLDivElement | null>(null);
+  const setTableContainerRef = useCallback((node: HTMLDivElement | null) => {
+    tableContainerRef.current = node;
+    setContainerMounted(node !== null);
+  }, []);
 
   // 2. State Hooks
   const [isFullScreen, setIsFullScreen] = useState(false);
@@ -179,7 +185,7 @@ function AdvancedDataTableInner<T extends object>(props: AdvancedDataTableProps<
 
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext items={columnOrder} strategy={horizontalListSortingStrategy}>
-          <ADTTableContainer role='grid' aria-label={title || 'Advanced Data Table'} ref={tableContainerRef} isFullScreen={isFullScreen}>
+          <ADTTableContainer role='grid' aria-label={title || 'Advanced Data Table'} ref={setTableContainerRef} isFullScreen={isFullScreen}>
             <AdvancedDataTableHeader
               table={table}
               tableContainerRef={tableContainerRef}

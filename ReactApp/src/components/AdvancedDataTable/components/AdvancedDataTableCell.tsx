@@ -131,7 +131,7 @@ function AdvancedDataTableCellInner<T extends object>({ cell, style }: Props<T>)
   };
 
   return (
-    <ADTCellWrapper role='gridcell' style={finalStyle} isPinned={!!isPinnedState} grow={colDef.grow}>
+    <ADTCellWrapper style={finalStyle} isPinned={!!isPinnedState} grow={colDef.grow}>
       <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', minWidth: 0, overflow: 'hidden' }}>
         <Box
           className='adt-cell-content'

@@ -106,14 +106,13 @@ function AdvancedDataTableHeaderCellInner<T extends object>({
 
   return (
     <ADTHeaderCellWrapper
-      role='columnheader'
       aria-sort={column.getIsSorted() === 'desc' ? 'descending' : column.getIsSorted() === 'asc' ? 'ascending' : 'none'}
       ref={setNodeRef}
       style={finalStyle}
       isPinned={!!isPinned}
       grow={colDef.grow}
     >
-      <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', minWidth: 0, mb: showFilters ? 1 : 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', width: '100%', minWidth: 0, marginBottom: showFilters ? '8px' : 0 }}>
         {enableColumnOrdering && !isDisplayColumn && (
           <Box
             {...attributes}
@@ -186,11 +185,7 @@ function AdvancedDataTableHeaderCellInner<T extends object>({
 
         {enableColumnPinning && !isDisplayColumn && column.getCanPin?.() !== false && (
           <>
-            <IconButton
-              size='small'
-              onClick={openPinMenu}
-              sx={{ p: 0.25, opacity: 0.7, flexShrink: 0 }}
-            >
+            <IconButton size='small' onClick={openPinMenu} sx={{ p: 0.25, opacity: 0.7, flexShrink: 0 }}>
               <MoreVert sx={{ fontSize: '1rem' }} />
             </IconButton>
 
@@ -211,24 +206,22 @@ function AdvancedDataTableHeaderCellInner<T extends object>({
               <MenuItem onClick={() => handlePinSelection(false)} disabled={!isPinned}>
                 Unpin
               </MenuItem>
-              {enableColumnResizing && (
-                <MenuItem onClick={handleAutoSize}>Auto-size column</MenuItem>
-              )}
+              {enableColumnResizing && <MenuItem onClick={handleAutoSize}>Auto-size column</MenuItem>}
             </Menu>
           </>
         )}
-      </Box>
+      </div>
 
       {showFilters && column.getCanFilter() && (
-        <Box
+        <div
           onClick={(event) => event.stopPropagation()}
-          sx={{
+          style={{
             width: '100%',
             minWidth: 0,
           }}
         >
           <ColumnFilter column={column} filterOptions={(header.getContext().table.options.meta as ADTMeta<T>)?.filterOptions} />
-        </Box>
+        </div>
       )}
 
       {enableColumnResizing && column.getCanResize() && (

@@ -59,6 +59,11 @@ function AdvancedDataTableRowInner<T extends object>({
 
   const shouldRenderDetailPanel = Boolean(renderDetailPanel && !isGroupedRow);
 
+  const rowVirtualizerRef = useRef(rowVirtualizer);
+  useEffect(() => {
+    rowVirtualizerRef.current = rowVirtualizer;
+  }, [rowVirtualizer]);
+
   const measureRow = useCallback(() => {
     if (!rowRef.current) return;
 
@@ -68,10 +73,10 @@ function AdvancedDataTableRowInner<T extends object>({
 
     animationFrameRef.current = window.requestAnimationFrame(() => {
       if (rowRef.current) {
-        rowVirtualizer.measureElement(rowRef.current);
+        rowVirtualizerRef.current.measureElement(rowRef.current);
       }
     });
-  }, [rowVirtualizer]);
+  }, []);
 
   const measureDuringAnimation = useCallback(() => {
     const duration = 350;
@@ -79,7 +84,7 @@ function AdvancedDataTableRowInner<T extends object>({
 
     const tick = () => {
       if (rowRef.current) {
-        rowVirtualizer.measureElement(rowRef.current);
+        rowVirtualizerRef.current.measureElement(rowRef.current);
       }
 
       if (performance.now() - startTime < duration) {
@@ -88,10 +93,15 @@ function AdvancedDataTableRowInner<T extends object>({
     };
 
     window.requestAnimationFrame(tick);
-  }, [rowVirtualizer]);
+  }, []);
 
+  const lastHeightRef = useRef<number>(0);
   const setMeasuredRowRef = useCallback(
     (node: HTMLDivElement | null) => {
+      if (rowRef.current === node) {
+        return;
+      }
+
       if (resizeObserverRef.current) {
         resizeObserverRef.current.disconnect();
         resizeObserverRef.current = null;
@@ -101,15 +111,23 @@ function AdvancedDataTableRowInner<T extends object>({
 
       if (!node) return;
 
-      rowVirtualizer.measureElement(node);
+      const initialHeight = node.getBoundingClientRect().height;
+      lastHeightRef.current = initialHeight;
+      rowVirtualizerRef.current.measureElement(node);
 
-      resizeObserverRef.current = new ResizeObserver(() => {
-        measureRow();
+      resizeObserverRef.current = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          const currentHeight = entry.borderBoxSize?.[0]?.blockSize ?? entry.contentRect.height;
+          if (Math.abs(currentHeight - lastHeightRef.current) > 0.5) {
+            lastHeightRef.current = currentHeight;
+            measureRow();
+          }
+        }
       });
 
       resizeObserverRef.current.observe(node);
     },
-    [measureRow, rowVirtualizer]
+    [measureRow],
   );
 
   const handleKeyDown = useCallback(
@@ -123,25 +141,12 @@ function AdvancedDataTableRowInner<T extends object>({
         }
       }
     },
-    [row]
+    [row],
   );
 
   useEffect(() => {
     measureRow();
-
-    const firstFrame = window.requestAnimationFrame(() => {
-      measureRow();
-
-      const secondFrame = window.requestAnimationFrame(() => {
-        measureRow();
-        rowVirtualizer.measure();
-      });
-
-      return () => window.cancelAnimationFrame(secondFrame);
-    });
-
-    return () => window.cancelAnimationFrame(firstFrame);
-  }, [columnSizingKey, measureRow, rowVirtualizer]);
+  }, [columnSizingKey, measureRow]);
 
   useEffect(() => {
     measureDuringAnimation();

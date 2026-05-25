@@ -13,6 +13,11 @@ import type {
   GroupingState,
   ExpandedState,
 } from '@tanstack/react-table';
+export interface ThemeColorConfig {
+  surface?: string;
+  border?: string;
+  surfaceSoft?: string;
+}
 
 export type ADTDensity = 'compact' | 'comfortable' | 'spacious';
 
@@ -109,6 +114,7 @@ export interface AdvancedDataTableProps<T extends object> {
   isStorage?: boolean;
   storageKey?: string;
   title?: string;
+  themeConfig?: ThemeColorConfig;
 }
 
 export type ADTExportParams = {
